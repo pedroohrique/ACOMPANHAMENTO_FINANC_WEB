@@ -382,7 +382,19 @@ function App() {
                     <thead><tr><th>Mês</th><th>Ano</th><th>Orçamento</th><th>Gasto</th><th>Saldo</th><th>% Uso</th><th>Qtd</th><th>Maior</th><th>Acumulado</th><th>Var</th><th>% Var</th></tr></thead>
                     <tbody>
                       {resumoMensal.map((item, idx) => (
-                        <tr key={idx}><td>{item.mes}</td><td>{item.ano}</td><td>{item.orcamento}</td><td>{item.gasto}</td><td className={String(item.saldo).includes('-') ? "text-danger" : "text-success"}>{item.saldo}</td><td>{item.percentual}</td><td>{item.qtd}</td><td>{item.maior_gasto}</td><td>{item.acumulado}</td><td>{item.variacao}</td><td>{item.percentual_var}</td></tr>
+                        <tr key={idx}>
+                          <td>{item.mes}</td>
+                          <td>{item.ano}</td>
+                          <td>{formatCurrency(item.orcamento)}</td>
+                          <td>{formatCurrency(item.gasto)}</td>
+                          <td className={String(item.saldo).includes('-') ? "text-danger" : "text-success"}>{formatCurrency(item.saldo)}</td>
+                          <td>{item.percentual != null ? `${Number(item.percentual).toFixed(2)}%` : '-'}</td>
+                          <td>{item.qtd}</td>
+                          <td>{formatCurrency(item.maior_gasto)}</td>
+                          <td>{formatCurrency(item.acumulado)}</td>
+                          <td>{item.variacao != null ? formatCurrency(item.variacao) : '-'}</td>
+                          <td>{item.percentual_var != null ? `${Number(item.percentual_var).toFixed(2)}%` : '-'}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
