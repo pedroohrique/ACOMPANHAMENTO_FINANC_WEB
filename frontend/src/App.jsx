@@ -42,18 +42,14 @@ import {
 } from 'recharts'
 import './App.css'
 
-// API Base URL from environment or default to local
-// Adicionando o parâmetro de skip do ngrok na própria URL base para evitar bloqueios de CORS no preflight
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://noncongruous-chiffonade-bernarda.ngrok-free.dev';
-const API_URL = BASE_URL.includes('ngrok-free.dev') ? `${BASE_URL}?ngrok-skip-browser-warning=1` : BASE_URL;
+// API Base URL
+// Usaremos caminhos relativos para que o Vercel faça o Proxy via vercel.json
+// Isso resolve definitivamente o problema de CORS e do aviso do Ngrok
+const API_URL = import.meta.env.VITE_API_URL || ''; 
 
-// Helper para tratar a URL com parâmetros existentes
+// Helper para tratar a URL
 const getUrl = (endpoint) => {
-    const separator = API_URL.includes('?') ? '&' : '?';
-    // Se a API_URL já tem o parâmetro, os endpoints são anexados antes dele ou o parâmetro é movido para o fim
-    const base = API_URL.split('?')[0];
-    const params = API_URL.split('?')[1] ? `?${API_URL.split('?')[1]}` : '';
-    return `${base}${endpoint}${params}`;
+    return `${API_URL}${endpoint}`;
 };
 
 function App() {
