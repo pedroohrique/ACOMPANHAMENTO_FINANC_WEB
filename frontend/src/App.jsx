@@ -103,6 +103,7 @@ function App() {
   // Helper for headers
   const getHeaders = () => ({
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
     'Authorization': `Bearer ${token}`
   });
 
@@ -123,7 +124,7 @@ function App() {
       if (authStep === 'register') {
         const res = await fetch(getUrl('/api/auth/register'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           body: JSON.stringify({ nome: authForm.nome, email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
@@ -137,7 +138,7 @@ function App() {
       else if (authStep === 'verify') {
         const res = await fetch(getUrl('/api/auth/verify'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           body: JSON.stringify({ email: authForm.email, code: authForm.code })
         })
         const data = await res.json()
@@ -151,7 +152,7 @@ function App() {
       else if (authStep === 'login') {
         const res = await fetch(getUrl('/api/auth/login'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           body: JSON.stringify({ email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
