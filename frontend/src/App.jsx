@@ -113,7 +113,7 @@ function App() {
       if (authStep === 'register') {
         const res = await fetch(`${API_URL}/api/auth/register`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
           body: JSON.stringify({ nome: authForm.nome, email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
@@ -127,7 +127,7 @@ function App() {
       else if (authStep === 'verify') {
         const res = await fetch(`${API_URL}/api/auth/verify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
           body: JSON.stringify({ email: authForm.email, code: authForm.code })
         })
         const data = await res.json()
@@ -141,7 +141,7 @@ function App() {
       else if (authStep === 'login') {
         const res = await fetch(`${API_URL}/api/auth/login`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
           body: JSON.stringify({ email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
