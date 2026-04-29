@@ -20,7 +20,11 @@ import {
   X,
   Zap,
   DollarSign,
-  Download
+  Download,
+  User,
+  Mail,
+  Lock,
+  UserPlus
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -41,14 +45,15 @@ import './App.css'
 // API Base URL from environment or default to local
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Security Configuration
-const API_HEADERS = {
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': '69420',
-  'X-API-Key': 'pedro_financas_2026_seguro_!@' // Chave de segurança para a API
-};
-
 function App() {
+  // Auth States
+  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')))
+  const [authStep, setAuthStep] = useState('login') // login, register, verify
+  const [authForm, setAuthForm] = useState({ nome: '', email: '', password: '', code: '' })
+  const [authMessage, setAuthMessage] = useState({ text: '', type: '' })
+
+  // Dashboard States
   const [activeTab, setActiveTab] = useState('dashboard')
   const [fluxo, setFluxo] = useState(null)
   const [resumoMensal, setResumoMensal] = useState([])
@@ -58,7 +63,7 @@ function App() {
   const [reportOverview, setReportOverview] = useState(null)
   const [categoriasMap, setCategoriasMap] = useState({})
   const [formasMap, setFormasMap] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
   const [showModal, setShowModal] = useState(false)
@@ -84,16 +89,83 @@ function App() {
     { id: 10, name: 'Outubro' }, { id: 11, name: 'Novembro' }, { id: 12, name: 'Dezembro' }
   ]
 
-  const calculateDaysRemaining = () => {
-    const today = new Date()
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-    return lastDay - today.getDate() + 1
+  // Helper for headers
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': '69420',
+    'Authorization': `Bearer ${token}`
+  });
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setToken(null)
+    setUser(null)
+    setAuthStep('login')
+  }
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault()
+    setAuthMessage({ text: '', type: '' })
+    setLoading(true)
+
+    try {
+      if (authStep === 'register') {
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome: authForm.nome, email: authForm.email, password: authForm.password })
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setAuthMessage({ text: 'Cadastro realizado! Verifique o código no console do servidor.', type: 'success' })
+          setAuthStep('verify')
+        } else {
+          setAuthMessage({ text: data.detail || 'Erro ao registrar', type: 'error' })
+        }
+      } 
+      else if (authStep === 'verify') {
+        const res = await fetch(`${API_URL}/api/auth/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authForm.email, code: authForm.code })
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setAuthMessage({ text: 'E-mail verificado! Agora você pode fazer login.', type: 'success' })
+          setAuthStep('login')
+        } else {
+          setAuthMessage({ text: data.detail || 'Código inválido', type: 'error' })
+        }
+      }
+      else if (authStep === 'login') {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authForm.email, password: authForm.password })
+        })
+        const data = await res.json()
+        if (res.ok) {
+          localStorage.setItem('token', data.access_token)
+          localStorage.setItem('user', JSON.stringify(data.user))
+          setToken(data.access_token)
+          setUser(data.user)
+        } else {
+          setAuthMessage({ text: data.detail || 'Credenciais inválidas', type: 'error' })
+        }
+      }
+    } catch (error) {
+      setAuthMessage({ text: 'Erro de conexão com o servidor', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const fetchData = async () => {
+    if (!token) return
     try {
       setLoading(true)
-      const fetchOptions = { headers: API_HEADERS };
+      const fetchOptions = { headers: getHeaders() };
       const [resFluxo, resResumo, resCategorias, resTrans, resDebitos, resReport, resCats, resWays] = await Promise.all([
         fetch(`${API_URL}/api/fluxo-caixa/${currentYear}/${currentMonth}`, fetchOptions),
         fetch(`${API_URL}/api/resumo-mensal/${currentYear}`, fetchOptions),
@@ -105,6 +177,9 @@ function App() {
         fetch(`${API_URL}/api/formas-pagamento`, fetchOptions)
       ])
 
+      // Se qualquer um retornar 401, desloga
+      if (resFluxo.status === 401) return handleLogout()
+
       const dFluxo = await resFluxo.json()
       const dResumo = await resResumo.json()
       const dCategorias = await resCategorias.json()
@@ -115,8 +190,6 @@ function App() {
       const dWays = await resWays.json()
 
       setFluxo(dFluxo.fluxo)
-
-      // Limpeza forçada de dados para o gráfico no Frontend
       const cleanResumo = (dResumo.resumo || []).map(item => ({
         ...item,
         gasto: typeof item.gasto === 'string' 
@@ -124,7 +197,6 @@ function App() {
           : parseFloat(item.gasto) || 0
       }))
       setResumoMensal(cleanResumo)
-
       setTransacoes(dTrans.transacoes || [])
       setDebitosPendentes(dDebitos.debitos || [])
       setReportOverview(dReport)
@@ -145,8 +217,8 @@ function App() {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (token) fetchData()
+  }, [token])
 
   const filteredTransacoes = useMemo(() => {
     if (!searchTerm) return transacoes
@@ -163,7 +235,7 @@ function App() {
       try {
         const response = await fetch(`${API_URL}/api/transacoes/${id}`, { 
           method: 'DELETE',
-          headers: API_HEADERS
+          headers: getHeaders()
         })
         if (response.ok) fetchData()
       } catch (error) {
@@ -224,7 +296,7 @@ function App() {
 
       const response = await fetch(url, {
         method,
-        headers: API_HEADERS,
+        headers: getHeaders(),
         body: JSON.stringify(body)
       })
 
@@ -245,7 +317,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/exportar-relatorio`, {
         method: 'POST',
-        headers: API_HEADERS,
+        headers: getHeaders(),
         body: JSON.stringify({ mes: parseInt(exportData.mes), ano: parseInt(exportData.ano) })
       })
 
@@ -262,10 +334,6 @@ function App() {
     }
   }
 
-  const daysRemaining = calculateDaysRemaining()
-  const recommendedDaily = reportOverview ? (reportOverview.valor_disponivel / daysRemaining) : 0
-  const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
-
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -273,15 +341,86 @@ function App() {
     }).format(value || 0)
   }
 
+  // --- VIEW: LOGIN / REGISTER ---
+  if (!token) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card glass animate-fade-in">
+          <div className="auth-header">
+            <div className="logo-icon large"><Wallet size={40} color="#10b981" /></div>
+            <h2>{authStep === 'login' ? 'Bem-vindo de volta' : authStep === 'register' ? 'Criar nova conta' : 'Verificação'}</h2>
+            <p className="auth-subtitle">
+              {authStep === 'login' ? 'Acesse seu controle financeiro' : authStep === 'register' ? 'Cadastre-se para começar' : 'Insira o código enviado (veja o terminal)'}
+            </p>
+          </div>
+
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            {authStep === 'register' && (
+              <div className="form-group">
+                <label><User size={16} /> Nome Completo</label>
+                <input type="text" placeholder="Seu nome" value={authForm.nome} onChange={e => setAuthForm({...authForm, nome: e.target.value})} required />
+              </div>
+            )}
+            <div className="form-group">
+              <label><Mail size={16} /> E-mail</label>
+              <input type="email" placeholder="email@exemplo.com" value={authForm.email} onChange={e => setAuthForm({...authForm, email: e.target.value})} required />
+            </div>
+            {authStep !== 'verify' && (
+              <div className="form-group">
+                <label><Lock size={16} /> Senha</label>
+                <input type="password" placeholder="••••••••" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} required />
+              </div>
+            )}
+            {authStep === 'verify' && (
+              <div className="form-group">
+                <label><Zap size={16} /> Código de Verificação</label>
+                <input type="text" placeholder="123456" value={authForm.code} onChange={e => setAuthForm({...authForm, code: e.target.value})} required />
+              </div>
+            )}
+
+            {authMessage.text && <div className={`auth-alert ${authMessage.type}`}>{authMessage.text}</div>}
+
+            <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+              {loading ? 'Aguarde...' : authStep === 'login' ? 'Entrar' : authStep === 'register' ? 'Registrar' : 'Verificar'}
+            </button>
+          </form>
+
+          <div className="auth-footer">
+            {authStep === 'login' ? (
+              <p>Não tem uma conta? <button onClick={() => setAuthStep('register')}>Cadastre-se</button></p>
+            ) : (
+              <p>Já tem uma conta? <button onClick={() => setAuthStep('login')}>Faça login</button></p>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const daysRemaining = (() => {
+    const today = new Date()
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+    return lastDay - today.getDate() + 1
+  })()
+  const recommendedDaily = reportOverview ? (reportOverview.valor_disponivel / daysRemaining) : 0
+  const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
+
   return (
     <div className="app-container">
       <aside className="sidebar glass">
         <div className="sidebar-logo"><div className="logo-icon"><Wallet size={24} color="#10b981" /></div><h1>Finance</h1></div>
+        <div className="user-profile">
+            <div className="user-avatar">{user?.nome?.charAt(0) || 'U'}</div>
+            <div className="user-info">
+                <p className="user-name">{user?.nome || 'Usuário'}</p>
+                <p className="user-email">{user?.email}</p>
+            </div>
+        </div>
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><LayoutDashboard size={20} /><span>Dashboard</span></button>
           <button className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}><Receipt size={20} /><span>Lançamentos</span></button>
         </nav>
-        <div className="sidebar-footer"><button className="nav-item logout"><LogOut size={20} /><span>Sair</span></button></div>
+        <div className="sidebar-footer"><button className="nav-item logout" onClick={handleLogout}><LogOut size={20} /><span>Sair</span></button></div>
       </aside>
 
       <main className="main-content">
@@ -293,136 +432,136 @@ function App() {
           </div>
         </header>
 
-        {loading ? <div className="loading-state"><p>Carregando...</p></div> : (
-          activeTab === 'dashboard' ? (
-            <div className="dashboard-view animate-fade-in">
-              <div className="stats-row">
-                <StatCard title="Entradas" value={formatCurrency(fluxo?.vl_entradas)} icon={TrendingUp} type="income" />
-                <StatCard title="Gasto do Mês" value={formatCurrency(reportOverview?.total_gastos)} icon={Receipt} type="expense" />
-                <StatCard title="Saldo Atual" value={formatCurrency(fluxo?.saldo_atual)} icon={Wallet} type="balance" />
-                <StatCard title="Valor Disponível" value={formatCurrency(reportOverview?.valor_disponivel)} icon={DollarSign} type="average" subtitle="Livre para uso" />
-                <StatCard title="Recomendado" value={formatCurrency(recommendedDaily)} icon={Zap} type="warning" subtitle="Limite diário" />
-              </div>
-              <div className="charts-row">
-                <div className="chart-container glass">
-                  <h3>Fluxo Mensal</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={resumoMensal}>
-                      <defs>
-                        <linearGradient id="colorGasto" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                      <XAxis dataKey="mes" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
-                      <Tooltip 
-                        formatter={(value) => formatCurrency(value)} 
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} 
+        {loading && <div className="loading-state"><p>Carregando...</p></div>}
+        
+        {activeTab === 'dashboard' ? (
+          <div className="dashboard-view animate-fade-in">
+            <div className="stats-row">
+              <StatCard title="Entradas" value={formatCurrency(fluxo?.vl_entradas)} icon={TrendingUp} type="income" />
+              <StatCard title="Gasto do Mês" value={formatCurrency(reportOverview?.total_gastos)} icon={Receipt} type="expense" />
+              <StatCard title="Saldo Atual" value={formatCurrency(fluxo?.saldo_atual)} icon={Wallet} type="balance" />
+              <StatCard title="Valor Disponível" value={formatCurrency(reportOverview?.valor_disponivel)} icon={DollarSign} type="average" subtitle="Livre para uso" />
+              <StatCard title="Recomendado" value={formatCurrency(recommendedDaily)} icon={Zap} type="warning" subtitle="Limite diário" />
+            </div>
+            <div className="charts-row">
+              <div className="chart-container glass">
+                <h3>Fluxo Mensal</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={resumoMensal}>
+                    <defs>
+                      <linearGradient id="colorGasto" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="mes" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                    <Tooltip 
+                      formatter={(value) => formatCurrency(value)} 
+                      contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} 
+                    />
+                    <Bar name="Gasto" dataKey="gasto" fill="#3b82f6" radius={[6, 6, 0, 0]}>
+                      {resumoMensal.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill="url(#colorGasto)" />
+                      ))}
+                      <LabelList 
+                        dataKey="gasto" 
+                        position="top" 
+                        formatter={(val) => val > 0 ? formatCurrency(val).replace('R$', '').trim() : ''}
+                        style={{ fill: '#94a3b8', fontSize: '11px', fontWeight: '600' }}
                       />
-                      <Bar name="Gasto" dataKey="gasto" fill="#3b82f6" radius={[6, 6, 0, 0]}>
-                        {resumoMensal.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill="url(#colorGasto)" />
-                        ))}
-                        <LabelList 
-                          dataKey="gasto" 
-                          position="top" 
-                          formatter={(val) => val > 0 ? formatCurrency(val).replace('R$', '').trim() : ''}
-                          style={{ fill: '#94a3b8', fontSize: '11px', fontWeight: '600' }}
-                        />
-                      </Bar>
-                    </BarChart>
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="chart-container glass">
+                <h3>Gastos por Categoria</h3>
+                <div className="category-layout">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={gastosCategoria} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
+                        {gastosCategoria.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                    </PieChart>
                   </ResponsiveContainer>
-                </div>
-                <div className="chart-container glass">
-                  <h3>Gastos por Categoria</h3>
-                  <div className="category-layout">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <PieChart>
-                        <Pie data={gastosCategoria} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
-                          {gastosCategoria.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="category-table-mini">
-                      <table>
-                        <tbody>
-                          {gastosCategoria.map((cat, idx) => (
-                            <tr key={idx}>
-                              <td><span className="dot" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span></td>
-                              <td className="cat-name">{cat.name}</td>
-                              <td className="cat-val">R$ {cat.value.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                  <div className="category-table-mini">
+                    <table>
+                      <tbody>
+                        {gastosCategoria.map((cat, idx) => (
+                          <tr key={idx}>
+                            <td><span className="dot" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span></td>
+                            <td className="cat-name">{cat.name}</td>
+                            <td className="cat-val">R$ {cat.value.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
-              <div className="report-section glass" style={{ marginBottom: '24px' }}>
-                <h3>Débitos Pendentes</h3>
-                <div className="table-container">
-                  <table className="modern-table">
-                    <thead><tr><th>Descrição</th><th>Parcelas</th><th>Vlr Total</th><th>Vlr Pendente</th><th>Último Pgto</th></tr></thead>
-                    <tbody>
-                      {debitosPendentes.length > 0 ? debitosPendentes.map((deb, idx) => (
-                        <tr key={idx}><td>{deb.descricao}</td><td>{deb.parcelas_pendentes}</td><td>{deb.valor_total}</td><td className="text-danger">{deb.valor_pendente}</td><td>{deb.mes_ultimo_debito}/{deb.ano_ultimo_debito}</td></tr>
-                      )) : <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Nenhum débito pendente.</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="report-section glass">
-                <h3>Resumo Anual Consolidado - {currentYear}</h3>
-                <div className="table-container">
-                  <table className="modern-table consolidated">
-                    <thead><tr><th>Mês</th><th>Ano</th><th>Orçamento</th><th>Gasto</th><th>Saldo</th><th>% Uso</th><th>Qtd</th><th>Maior</th><th>Acumulado</th><th>Var</th><th>% Var</th></tr></thead>
-                    <tbody>
-                      {resumoMensal.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>{item.mes}</td>
-                          <td>{item.ano}</td>
-                          <td>{formatCurrency(item.orcamento)}</td>
-                          <td>{formatCurrency(item.gasto)}</td>
-                          <td className={String(item.saldo).includes('-') ? "text-danger" : "text-success"}>{formatCurrency(item.saldo)}</td>
-                          <td>{item.percentual != null ? `${Number(item.percentual).toFixed(2)}%` : '-'}</td>
-                          <td>{item.qtd}</td>
-                          <td>{formatCurrency(item.maior_gasto)}</td>
-                          <td>{formatCurrency(item.acumulado)}</td>
-                          <td>{item.variacao != null ? formatCurrency(item.variacao) : '-'}</td>
-                          <td>{item.percentual_var != null ? `${Number(item.percentual_var).toFixed(2)}%` : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            </div>
+            <div className="report-section glass" style={{ marginBottom: '24px' }}>
+              <h3>Débitos Pendentes</h3>
+              <div className="table-container">
+                <table className="modern-table">
+                  <thead><tr><th>Descrição</th><th>Parcelas</th><th>Vlr Total</th><th>Vlr Pendente</th><th>Último Pgto</th></tr></thead>
+                  <tbody>
+                    {debitosPendentes.length > 0 ? debitosPendentes.map((deb, idx) => (
+                      <tr key={idx}><td>{deb.descricao}</td><td>{deb.parcelas_pendentes}</td><td>{deb.valor_total}</td><td className="text-danger">{deb.valor_pendente}</td><td>{deb.mes_ultimo_debito}/{deb.ano_ultimo_debito}</td></tr>
+                    )) : <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Nenhum débito pendente.</td></tr>}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ) : (
-            <div className="transactions-view animate-fade-in">
-              <div className="view-header">
-                <div className="search-bar-container glass">
-                  <Search size={18} color="#94a3b8" /><input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                <button className="btn btn-secondary glass"><Filter size={18} /><span>Filtros</span></button>
-              </div>
-              <div className="table-card glass">
-                <div className="table-container">
-                  <table className="modern-table">
-                    <thead><tr><th>Data</th><th>Pagto</th><th>Descrição</th><th>Categoria</th><th>Local</th><th>Total</th><th>Parcela</th><th>Pendente</th><th>Forma</th><th>Ações</th></tr></thead>
-                    <tbody>
-                      {filteredTransacoes.map((t) => (
-                        <tr key={t.id}><td>{t.dt_compra}</td><td>{t.dt_pagamento}</td><td className="font-semibold">{t.descricao}</td><td><span className="badge-category">{t.categoria}</span></td><td>{t.local}</td><td>{t.total}</td><td>{t.valor_parcela}</td><td className={t.valor_pendente !== "R$ 0,00" ? "text-danger" : ""}>{t.valor_pendente}</td><td>{t.forma_pagamento}</td><td><div className="action-buttons"><button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button><button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button></div></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <div className="report-section glass">
+              <h3>Resumo Anual Consolidado - {currentYear}</h3>
+              <div className="table-container">
+                <table className="modern-table consolidated">
+                  <thead><tr><th>Mês</th><th>Ano</th><th>Orçamento</th><th>Gasto</th><th>Saldo</th><th>% Uso</th><th>Qtd</th><th>Maior</th><th>Acumulado</th><th>Var</th><th>% Var</th></tr></thead>
+                  <tbody>
+                    {resumoMensal.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>{item.mes}</td>
+                        <td>{item.ano}</td>
+                        <td>{formatCurrency(item.orcamento)}</td>
+                        <td>{formatCurrency(item.gasto)}</td>
+                        <td className={String(item.saldo).includes('-') ? "text-danger" : "text-success"}>{formatCurrency(item.saldo)}</td>
+                        <td>{item.percentual != null ? `${Number(item.percentual).toFixed(2)}%` : '-'}</td>
+                        <td>{item.qtd}</td>
+                        <td>{formatCurrency(item.maior_gasto)}</td>
+                        <td>{formatCurrency(item.acumulado)}</td>
+                        <td>{item.variacao != null ? formatCurrency(item.variacao) : '-'}</td>
+                        <td>{item.percentual_var != null ? `${Number(item.percentual_var).toFixed(2)}%` : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )
+          </div>
+        ) : (
+          <div className="transactions-view animate-fade-in">
+            <div className="view-header">
+              <div className="search-bar-container glass">
+                <Search size={18} color="#94a3b8" /><input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              <button className="btn btn-secondary glass"><Filter size={18} /><span>Filtros</span></button>
+            </div>
+            <div className="table-card glass">
+              <div className="table-container">
+                <table className="modern-table">
+                  <thead><tr><th>Data</th><th>Pagto</th><th>Descrição</th><th>Categoria</th><th>Local</th><th>Total</th><th>Parcela</th><th>Pendente</th><th>Forma</th><th>Ações</th></tr></thead>
+                  <tbody>
+                    {filteredTransacoes.map((t) => (
+                      <tr key={t.id}><td>{t.dt_compra}</td><td>{t.dt_pagamento}</td><td className="font-semibold">{t.descricao}</td><td><span className="badge-category">{t.categoria}</span></td><td>{t.local}</td><td>{t.total}</td><td>{t.valor_parcela}</td><td className={t.valor_pendente !== "R$ 0,00" ? "text-danger" : ""}>{t.valor_pendente}</td><td>{t.forma_pagamento}</td><td><div className="action-buttons"><button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button><button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button></div></td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 
