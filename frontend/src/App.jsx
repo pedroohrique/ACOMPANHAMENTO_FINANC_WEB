@@ -165,7 +165,7 @@ function App() {
         }
       }
     } catch (error) {
-      setAuthMessage({ text: 'Erro de conexão com o servidor', type: 'error' })
+      setAuthMessage({ text: `Erro: ${error.message || 'Conexão recusada pelo servidor'}`, type: 'error' })
     } finally {
       setLoading(false)
     }
