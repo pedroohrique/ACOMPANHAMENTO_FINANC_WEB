@@ -43,7 +43,18 @@ import {
 import './App.css'
 
 // API Base URL from environment or default to local
-const API_URL = import.meta.env.VITE_API_URL || 'https://noncongruous-chiffonade-bernarda.ngrok-free.dev';
+// Adicionando o parâmetro de skip do ngrok na própria URL base para evitar bloqueios de CORS no preflight
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://noncongruous-chiffonade-bernarda.ngrok-free.dev';
+const API_URL = BASE_URL.includes('ngrok-free.dev') ? `${BASE_URL}?ngrok-skip-browser-warning=1` : BASE_URL;
+
+// Helper para tratar a URL com parâmetros existentes
+const getUrl = (endpoint) => {
+    const separator = API_URL.includes('?') ? '&' : '?';
+    // Se a API_URL já tem o parâmetro, os endpoints são anexados antes dele ou o parâmetro é movido para o fim
+    const base = API_URL.split('?')[0];
+    const params = API_URL.split('?')[1] ? `?${API_URL.split('?')[1]}` : '';
+    return `${base}${endpoint}${params}`;
+};
 
 function App() {
   // Auth States
@@ -92,7 +103,6 @@ function App() {
   // Helper for headers
   const getHeaders = () => ({
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': '69420',
     'Authorization': `Bearer ${token}`
   });
 
@@ -111,9 +121,9 @@ function App() {
 
     try {
       if (authStep === 'register') {
-        const res = await fetch(`${API_URL}/api/auth/register`, {
+        const res = await fetch(getUrl('/api/auth/register'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nome: authForm.nome, email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
@@ -125,9 +135,9 @@ function App() {
         }
       } 
       else if (authStep === 'verify') {
-        const res = await fetch(`${API_URL}/api/auth/verify`, {
+        const res = await fetch(getUrl('/api/auth/verify'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: authForm.email, code: authForm.code })
         })
         const data = await res.json()
@@ -139,9 +149,9 @@ function App() {
         }
       }
       else if (authStep === 'login') {
-        const res = await fetch(`${API_URL}/api/auth/login`, {
+        const res = await fetch(getUrl('/api/auth/login'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '69420' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: authForm.email, password: authForm.password })
         })
         const data = await res.json()
@@ -167,14 +177,14 @@ function App() {
       setLoading(true)
       const fetchOptions = { headers: getHeaders() };
       const [resFluxo, resResumo, resCategorias, resTrans, resDebitos, resReport, resCats, resWays] = await Promise.all([
-        fetch(`${API_URL}/api/fluxo-caixa/${currentYear}/${currentMonth}`, fetchOptions),
-        fetch(`${API_URL}/api/resumo-mensal/${currentYear}`, fetchOptions),
-        fetch(`${API_URL}/api/gastos-por-categoria/${currentYear}/${currentMonth}`, fetchOptions),
-        fetch(`${API_URL}/api/transacoes`, fetchOptions),
-        fetch(`${API_URL}/api/debitos-pendentes`, fetchOptions),
-        fetch(`${API_URL}/api/visao-geral-relatorio/${currentYear}/${currentMonth}`, fetchOptions),
-        fetch(`${API_URL}/api/categorias`, fetchOptions),
-        fetch(`${API_URL}/api/formas-pagamento`, fetchOptions)
+        fetch(getUrl(`/api/fluxo-caixa/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/resumo-mensal/${currentYear}`), fetchOptions),
+        fetch(getUrl(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/transacoes`), fetchOptions),
+        fetch(getUrl(`/api/debitos-pendentes`), fetchOptions),
+        fetch(getUrl(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/categorias`), fetchOptions),
+        fetch(getUrl(`/api/formas-pagamento`), fetchOptions)
       ])
 
       // Se qualquer um retornar 401, desloga
@@ -233,7 +243,7 @@ function App() {
   const handleDelete = async (id) => {
     if (window.confirm("Deseja realmente excluir este lançamento?")) {
       try {
-        const response = await fetch(`${API_URL}/api/transacoes/${id}`, { 
+        const response = await fetch(getUrl(`/api/transacoes/${id}`), { 
           method: 'DELETE',
           headers: getHeaders()
         })
@@ -280,7 +290,7 @@ function App() {
   const handleModalSubmit = async (e) => {
     e.preventDefault()
     try {
-      const url = modalMode === 'cadastrar' ? `${API_URL}/api/transacoes` : `${API_URL}/api/transacoes/${formData.id}`
+      const url = modalMode === 'cadastrar' ? getUrl(`/api/transacoes`) : getUrl(`/api/transacoes/${formData.id}`)
       const method = modalMode === 'cadastrar' ? 'POST' : 'PUT'
       
       const body = {
@@ -315,7 +325,7 @@ function App() {
   const handleExportSubmit = async (e) => {
     e.preventDefault()
     try {
-      const response = await fetch(`${API_URL}/api/exportar-relatorio`, {
+      const response = await fetch(getUrl(`/api/exportar-relatorio`), {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ mes: parseInt(exportData.mes), ano: parseInt(exportData.ano) })
