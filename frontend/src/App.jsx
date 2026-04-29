@@ -43,7 +43,7 @@ import {
 import './App.css'
 
 // API Base URL from environment or default to local
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://noncongruous-chiffonade-bernarda.ngrok-free.dev';
 
 function App() {
   // Auth States
