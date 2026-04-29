@@ -42,10 +42,10 @@ import {
 } from 'recharts'
 import './App.css'
 
-// API Base URL
-// Usaremos caminhos relativos para que o Vercel faça o Proxy via vercel.json
-// Isso resolve definitivamente o problema de CORS e do aviso do Ngrok
-const API_URL = import.meta.env.VITE_API_URL || ''; 
+// API Base URL - FORÇANDO CAMINHO RELATIVO
+// Removemos o import.meta.env para garantir que o Vercel Proxy (vercel.json) seja usado
+// Isso evita que variáveis de ambiente antigas no Vercel quebrem o sistema
+const API_URL = ''; 
 
 // Helper para tratar a URL
 const getUrl = (endpoint) => {
