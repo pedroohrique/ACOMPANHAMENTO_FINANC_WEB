@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/api/:path*",
+      "destination": "https://noncongruous-chiffonade-bernarda.ngrok-free.dev/api/:path*"
     }
   ]
 }
