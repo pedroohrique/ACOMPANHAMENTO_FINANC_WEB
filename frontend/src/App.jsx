@@ -43,8 +43,6 @@ import {
 import './App.css'
 
 // API Base URL - FORÇANDO CAMINHO RELATIVO
-// Removemos o import.meta.env para garantir que o Vercel Proxy (vercel.json) seja usado
-// Isso evita que variáveis de ambiente antigas no Vercel quebrem o sistema
 const API_URL = ''; 
 
 // Helper para tratar a URL
@@ -174,30 +172,29 @@ function App() {
     try {
       setLoading(true)
       const fetchOptions = { headers: getHeaders() };
-      const [resFluxo, resResumo, resCategorias, resTrans, resDebitos, resReport, resCats, resWays] = await Promise.all([
-        fetch(getUrl(`/api/fluxo-caixa/${currentYear}/${currentMonth}`), fetchOptions),
-        fetch(getUrl(`/api/resumo-mensal/${currentYear}`), fetchOptions),
-        fetch(getUrl(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`), fetchOptions),
-        fetch(getUrl(`/api/transacoes`), fetchOptions),
-        fetch(getUrl(`/api/debitos-pendentes`), fetchOptions),
-        fetch(getUrl(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`), fetchOptions),
-        fetch(getUrl(`/api/categorias`), fetchOptions),
-        fetch(getUrl(`/api/formas-pagamento`), fetchOptions)
-      ])
+      
+      // Realizando buscas de forma sequencial para não sobrecarregar o túnel do Ngrok
+      const fetchJson = async (url) => {
+        const res = await fetch(getUrl(url), fetchOptions);
+        if (res.status === 401) {
+            handleLogout();
+            throw new Error("Não autorizado");
+        }
+        return res.json();
+      };
 
-      // Se qualquer um retornar 401, desloga
-      if (resFluxo.status === 401) return handleLogout()
+      const dFluxo = await fetchJson(`/api/fluxo-caixa/${currentYear}/${currentMonth}`);
+      const dResumo = await fetchJson(`/api/resumo-mensal/${currentYear}`);
+      const dCategorias = await fetchJson(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`);
+      const dTrans = await fetchJson(`/api/transacoes`);
+      const dDebitos = await fetchJson(`/api/debitos-pendentes`);
+      const dReport = await fetchJson(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`);
+      const dCats = await fetchJson(`/api/categorias`);
+      const dWays = await fetchJson(`/api/formas-pagamento`);
 
-      const dFluxo = await resFluxo.json()
-      const dResumo = await resResumo.json()
-      const dCategorias = await resCategorias.json()
-      const dTrans = await resTrans.json()
-      const dDebitos = await resDebitos.json()
-      const dReport = await resReport.json()
-      const dCats = await resCats.json()
-      const dWays = await resWays.json()
-
+      // Só atualizamos os estados se conseguirmos chegar até o fim com sucesso
       setFluxo(dFluxo.fluxo)
+      
       const cleanResumo = (dResumo.resumo || []).map(item => ({
         ...item,
         gasto: typeof item.gasto === 'string' 
@@ -219,6 +216,7 @@ function App() {
 
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
+      // Não resetamos os estados aqui para evitar que os dados "sumam" da tela em caso de erro temporário
     } finally {
       setLoading(false)
     }
