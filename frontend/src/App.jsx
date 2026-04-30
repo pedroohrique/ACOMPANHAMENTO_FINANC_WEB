@@ -100,6 +100,7 @@ function App() {
   const getHeaders = () => ({
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
+    'X-Auth-Token': token,
     'Authorization': `Bearer ${token}`
   });
 
