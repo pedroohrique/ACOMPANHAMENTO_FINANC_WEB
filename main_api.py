@@ -4,6 +4,28 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
 from typing import Optional, Dict, Any
+import json
+import os
+
+RECORRENCIAS_FILE = os.path.join("app", "database", "recorrencias.json")
+
+def get_recorrencias_ids():
+    if not os.path.exists(RECORRENCIAS_FILE):
+        return []
+    try:
+        with open(RECORRENCIAS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
+
+def toggle_recorrencia_status(id_registro, status):
+    ids = get_recorrencias_ids()
+    if status and id_registro not in ids:
+        ids.append(id_registro)
+    elif not status and id_registro in ids:
+        ids.remove(id_registro)
+    with open(RECORRENCIAS_FILE, "w") as f:
+        json.dump(ids, f)
 
 # Configuração de logs
 logging.basicConfig(level=logging.INFO)
@@ -145,6 +167,7 @@ def get_transactions():
     query = with_no_filter()
     conn, cursor = database_connection()
     try:
+        recorrentes = get_recorrencias_ids()
         with conn:
             cursor.execute(query)
             rows = cursor.fetchall()
@@ -152,7 +175,8 @@ def get_transactions():
                 "id": r[8], "dt_compra": r[0], "dt_pagamento": r[1], "total": r[2],
                 "valor_parcela": r[3], "valor_pendente": r[4], "categoria": r[5],
                 "descricao": r[6], "local": r[7], "forma_pagamento": r[9],
-                "parcelamento": r[10], "n_parcelas": r[11]
+                "parcelamento": r[10], "n_parcelas": r[11],
+                "recorrente": r[8] in recorrentes
             } for r in rows]}
     except Exception as e:
         logger.error(f"Erro ao buscar transações: {e}")
@@ -200,9 +224,21 @@ def export_report_route(data: Dict[str, int] = Body(...)):
 def delete_transaction(id_registro: int):
     try:
         deleta_item_treeview((id_registro,))
+        # Tenta remover das recorrências também, se houver
+        toggle_recorrencia_status(id_registro, False)
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Erro ao deletar transação: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/transacoes/{id_registro}/recorrencia")
+def update_recorrencia(id_registro: int, data: Dict[str, bool] = Body(...)):
+    try:
+        status = data.get("recorrente", False)
+        toggle_recorrencia_status(id_registro, status)
+        return {"status": "success", "recorrente": status}
+    except Exception as e:
+        logger.error(f"Erro ao atualizar recorrência: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

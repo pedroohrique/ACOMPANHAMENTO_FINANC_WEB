@@ -24,7 +24,8 @@ import {
   User,
   Mail,
   Lock,
-  UserPlus
+  UserPlus,
+  Repeat
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -234,14 +235,19 @@ function App() {
   }, [token])
 
   const filteredTransacoes = useMemo(() => {
-    if (!searchTerm) return transacoes
+    let base = transacoes;
+    if (activeTab === 'recurrences') {
+      base = base.filter(t => t.recorrente);
+    }
+
+    if (!searchTerm) return base
     
     const normalize = (str) => 
       String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
       
     const lowerSearch = normalize(searchTerm)
     
-    return transacoes.filter(t => 
+    return base.filter(t => 
       normalize(t.descricao).includes(lowerSearch) ||
       normalize(t.local).includes(lowerSearch) ||
       normalize(t.categoria).includes(lowerSearch) ||
@@ -254,7 +260,7 @@ function App() {
       normalize(String(t.valor_parcela).replace('.', ',')).includes(lowerSearch) ||
       normalize(formatCurrency(t.valor_parcela)).includes(lowerSearch)
     )
-  }, [transacoes, searchTerm])
+  }, [transacoes, searchTerm, activeTab])
 
   const handleDelete = async (id) => {
     if (window.confirm("Deseja realmente excluir este lançamento?")) {
@@ -267,6 +273,19 @@ function App() {
       } catch (error) {
         console.error("Erro delete:", error)
       }
+    }
+  }
+
+  const handleToggleRecorrencia = async (t) => {
+    try {
+      const response = await fetch(getUrl(`/api/transacoes/${t.id}/recorrencia`), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ recorrente: !t.recorrente })
+      })
+      if (response.ok) fetchData()
+    } catch (error) {
+      console.error("Erro ao alterar recorrência:", error)
     }
   }
 
@@ -438,13 +457,14 @@ function App() {
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><LayoutDashboard size={20} /><span>Dashboard</span></button>
           <button className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}><Receipt size={20} /><span>Lançamentos</span></button>
+          <button className={`nav-item ${activeTab === 'recurrences' ? 'active' : ''}`} onClick={() => setActiveTab('recurrences')}><Repeat size={20} /><span>Recorrências</span></button>
         </nav>
         <div className="sidebar-footer"><button className="nav-item logout" onClick={handleLogout}><LogOut size={20} /><span>Sair</span></button></div>
       </aside>
 
       <main className="main-content">
         <header className="main-header">
-          <div className="header-search"><h2>{activeTab === 'dashboard' ? 'Dashboard' : 'Lançamentos'}</h2></div>
+          <div className="header-search"><h2>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'recurrences' ? 'Recorrências Ativas' : 'Lançamentos'}</h2></div>
           <div className="header-actions">
             {activeTab === 'dashboard' && <button className="btn btn-secondary glass" onClick={() => setShowExportModal(true)}><Download size={18} /><span>Exportar</span></button>}
             <button className="btn btn-primary" onClick={() => openModal('cadastrar')}><Plus size={18} /><span>Novo Registro</span></button>
@@ -586,6 +606,14 @@ function App() {
                         <td>{t.forma_pagamento}</td>
                         <td>
                           <div className="action-buttons">
+                            <button 
+                              className={`action-btn ${t.recorrente ? 'recorrente-active' : ''}`} 
+                              title={t.recorrente ? "Remover Recorrência" : "Marcar como Recorrente"} 
+                              onClick={() => handleToggleRecorrencia(t)}
+                              style={{ color: t.recorrente ? 'var(--accent-secondary)' : '' }}
+                            >
+                              <Repeat size={16} />
+                            </button>
                             <button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button>
                             <button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button>
                           </div>
