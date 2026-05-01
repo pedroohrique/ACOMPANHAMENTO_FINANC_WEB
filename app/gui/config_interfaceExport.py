@@ -116,14 +116,8 @@ class InterfaceExport:
                 mes_visualizacao=v_month,
                 ano_vizualizacao=v_year
             )
-
-            messagebox.showinfo(
-                "Exportação concluída",
-                "Relatório exportado com sucesso!"
-            )
-
         except Exception as e:
-            messagebox.showerror(
+            self.log(
                 "Erro na exportação",
                 f"Ocorreu um erro ao exportar o relatório:\n\n{e}"
             )
