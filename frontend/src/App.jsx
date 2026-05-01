@@ -239,7 +239,13 @@ function App() {
       normalize(t.local).includes(lowerSearch) ||
       normalize(t.categoria).includes(lowerSearch) ||
       normalize(t.forma_pagamento).includes(lowerSearch) ||
-      normalize(t.dt_compra).includes(lowerSearch)
+      normalize(t.dt_compra).includes(lowerSearch) ||
+      normalize(String(t.total)).includes(lowerSearch) ||
+      normalize(String(t.total).replace('.', ',')).includes(lowerSearch) ||
+      normalize(formatCurrency(t.total)).includes(lowerSearch) ||
+      normalize(String(t.valor_parcela)).includes(lowerSearch) ||
+      normalize(String(t.valor_parcela).replace('.', ',')).includes(lowerSearch) ||
+      normalize(formatCurrency(t.valor_parcela)).includes(lowerSearch)
     )
   }, [transacoes, searchTerm])
 
@@ -568,7 +574,23 @@ function App() {
                   <thead><tr><th>Data</th><th>Pagto</th><th>Descrição</th><th>Categoria</th><th>Local</th><th>Total</th><th>Parcela</th><th>Pendente</th><th>Forma</th><th>Ações</th></tr></thead>
                   <tbody>
                     {filteredTransacoes.map((t) => (
-                      <tr key={t.id}><td>{t.dt_compra}</td><td>{t.dt_pagamento}</td><td className="font-semibold">{t.descricao}</td><td><span className="badge-category">{t.categoria}</span></td><td>{t.local}</td><td>{t.total}</td><td>{t.valor_parcela}</td><td className={t.valor_pendente !== "R$ 0,00" ? "text-danger" : ""}>{t.valor_pendente}</td><td>{t.forma_pagamento}</td><td><div className="action-buttons"><button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button><button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button></div></td></tr>
+                      <tr key={t.id}>
+                        <td>{t.dt_compra}</td>
+                        <td>{t.dt_pagamento}</td>
+                        <td className="font-semibold">{t.descricao}</td>
+                        <td><span className="badge-category">{t.categoria}</span></td>
+                        <td>{t.local}</td>
+                        <td>{formatCurrency(t.total)}</td>
+                        <td>{formatCurrency(t.valor_parcela)}</td>
+                        <td className={(t.valor_pendente && parseFloat(t.valor_pendente) > 0) ? "text-danger" : ""}>{formatCurrency(t.valor_pendente)}</td>
+                        <td>{t.forma_pagamento}</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button>
+                            <button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
