@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, Header, Request
+from fastapi import FastAPI, HTTPException, Body, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -161,9 +161,76 @@ def get_report_overview(ano: int, mes: int):
         "qtd_debitos_pendentes": qtd_pendente
     }
 
+# --- BACKGROUND TASKS ---
+def process_monthly_recurrences():
+    try:
+        recorrentes = get_recorrencias_ids()
+        if not recorrentes:
+            return
+
+        query = with_no_filter()
+        conn, cursor = database_connection()
+        with conn:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        
+        descricoes_este_mes = set()
+        for r in rows:
+            dt_str = r[0]
+            if dt_str:
+                parts = dt_str.split('/')
+                if len(parts) == 3 and int(parts[1]) == current_month and int(parts[2]) == current_year:
+                    descricoes_este_mes.add(r[6].lower())
+                    
+        cat_map = category_map()
+        fp_map = payment_method_map()
+        
+        for r in rows:
+            id_registro = r[8]
+            if id_registro in recorrentes:
+                desc = r[6]
+                if desc.lower() not in descricoes_este_mes:
+                    # Precisa clonar
+                    dt_str = r[0]
+                    if not dt_str: continue
+                    parts = dt_str.split('/')
+                    dia = min(int(parts[0]), 28)
+                    dt_gasto = f"{current_year}-{current_month:02d}-{dia:02d}"
+                    
+                    try:
+                        valor = float(r[2]) if r[2] else 0.0
+                    except:
+                        try:
+                            valor = float(str(r[2]).replace('R$', '').replace('.','').replace(',', '.').strip())
+                        except:
+                            valor = 0.0
+                            
+                    array = {
+                        "dt_registro": datetime.now(),
+                        "dt_gasto": dt_gasto,
+                        "valor": valor,
+                        "desc": desc,
+                        "desc_local": r[7],
+                        "flag_parcelamento": r[10] or "N",
+                        "qt_parcelas": r[11] or 1,
+                        "desc_categoria": cat_map.get(r[5]),
+                        "forma_pagamento": fp_map.get(r[9])
+                    }
+                    
+                    if array["desc_categoria"] and array["forma_pagamento"]:
+                        record_financial(array)
+                        descricoes_este_mes.add(desc.lower())
+
+    except Exception as e:
+        logger.error(f"Erro no processamento de recorrencias: {e}")
+
 # --- ROTAS DE REGISTROS (CRUD) ---
 @app.get("/api/transacoes")
-def get_transactions():
+def get_transactions(background_tasks: BackgroundTasks):
+    background_tasks.add_task(process_monthly_recurrences)
     query = with_no_filter()
     conn, cursor = database_connection()
     try:
