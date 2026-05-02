@@ -208,10 +208,11 @@ function App() {
       setDebitosPendentes(data.debitos_pendentes || [])
       setReportOverview(data.report_overview)
       
-      const cMap = {}; (data.categorias_lista || []).forEach(c => cMap[c[0]] = c[1]);
+      // Mapeamento Nome -> ID para uso nos formulários
+      const cMap = {}; (data.categorias_lista || []).forEach(c => cMap[c[1]] = c[0]);
       setCategoriasMap(cMap);
       
-      const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[f[0]] = f[1]);
+      const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[f[1]] = f[0]);
       setFormasMap(fMap);
 
       const cleanResumo = (data.resumo || []).map(item => {
