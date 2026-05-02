@@ -283,9 +283,15 @@ function App() {
         headers: getHeaders(),
         body: JSON.stringify({ recorrente: !t.recorrente })
       })
-      if (response.ok) fetchData()
+      if (response.ok) {
+        fetchData()
+      } else {
+        const err = await response.json()
+        alert("Erro ao salvar recorrência: " + (err.detail || "Erro desconhecido"));
+      }
     } catch (error) {
       console.error("Erro ao alterar recorrência:", error)
+      alert("Erro ao alterar recorrência: " + error.message)
     }
   }
 
