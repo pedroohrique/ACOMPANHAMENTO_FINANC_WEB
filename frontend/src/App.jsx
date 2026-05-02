@@ -110,6 +110,13 @@ function App() {
     'ngrok-skip-browser-warning': 'true'
   });
 
+  // Limpeza de tokens legados para garantir estabilidade
+  useEffect(() => {
+    if (token && (token.startsWith('token_') || token.includes('pedro'))) {
+      handleLogout();
+    }
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
