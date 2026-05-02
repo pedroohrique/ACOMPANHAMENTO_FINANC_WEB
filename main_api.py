@@ -272,21 +272,18 @@ def get_dashboard_full(ano: int, mes: int):
         resumo = get_db_data(fg_monthly_summary, (ano,))
         categorias = get_db_data(fg_spent_by_category, (mes, ano))
         debitos = get_db_data(fg_outstanding_debts)
-        # transacoes = get_db_data(with_no_filter) # Podemos manter separado se for muito pesado, mas vamos incluir
-        
-        # Visão Geral Relatório
-        report = get_db_data(fg_monthly_summary, (ano,)) # Reutilizando resumo por enquanto ou chamando específico
-        
-        # Auxiliares
         cats_list = get_db_data(get_categories)
         ways_list = get_db_data(get_payment_methods)
+        
+        # Visão Geral Relatório (Filtrado pelo mês atual)
+        report_curr = next((m for m in resumo if m.get('mes') == mes), None)
         
         return {
             "fluxo": fluxo[0] if fluxo else {"vl_entradas": 0, "vl_saidas": 0, "custo_medio_mensal": 0, "saldo_atual": 0},
             "resumo": resumo,
             "gastos_categoria": categorias,
             "debitos_pendentes": debitos,
-            "report_overview": report[0] if report else None,
+            "report_overview": report_curr,
             "categorias_lista": cats_list,
             "formas_pagamento_lista": ways_list
         }

@@ -232,14 +232,13 @@ function App() {
       })
       setResumoMensal(cleanResumo)
       setTransacoes(dTrans.transacoes || [])
-      setDebitosPendentes(data.debitos_pendentes || [])
-      setReportOverview(data.report_overview)
-
-      const formattedCats = Object.entries(data.gastos_categoria || {}).map(([name, value]) => ({
-        name,
-        value: parseFloat(value) || 0
-      })).filter(cat => cat.value > 0)
-      setGastosCategoria(formattedCats)
+      
+      // Ajuste para o gráfico de categorias (já vem formatado do backend)
+      const formattedCats = (data.gastos_categoria || []).map(cat => ({
+        name: cat.name,
+        value: parseFloat(cat.value) || 0
+      })).filter(cat => cat.value > 0);
+      setGastosCategoria(formattedCats);
 
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
