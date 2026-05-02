@@ -279,7 +279,9 @@ function App() {
 
   const handleToggleRecorrencia = async (t) => {
     try {
-      const response = await fetch(getUrl(`/api/transacoes/${t.id}/recorrencia`), {
+      const url = getUrl(`/api/transacoes/${t.id}/recorrencia`);
+      console.log("Chamando URL de recorrência:", url);
+      const response = await fetch(url, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ recorrente: !t.recorrente })

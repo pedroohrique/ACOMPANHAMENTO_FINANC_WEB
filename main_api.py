@@ -313,11 +313,17 @@ def delete_transaction(id_registro: int):
 
 @app.post("/api/transacoes/{id_registro}/recorrencia")
 @app.post("/api/transacoes/{id_registro}/recorrencia/")
-def update_recorrencia(id_registro: int, data: Dict[str, bool] = Body(...)):
+def update_recorrencia(id_registro: str, data: Dict[str, bool] = Body(...)):
     try:
+        # Tenta converter para int se possível
+        try:
+            id_final = int(id_registro)
+        except:
+            id_final = id_registro
+            
         status = data.get("recorrente", False)
-        logger.info(f"Alterando recorrência do ID {id_registro} para {status}")
-        toggle_recorrencia_status(id_registro, status)
+        logger.info(f"Alterando recorrência do ID {id_final} para {status}")
+        toggle_recorrencia_status(id_final, status)
         return {"status": "success", "recorrente": status}
     except Exception as e:
         logger.error(f"Erro ao atualizar recorrência: {e}")
