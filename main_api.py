@@ -263,6 +263,37 @@ def get_pending_debts():
         "mes_ultimo_debito": d[7], "ano_ultimo_debito": d[8]
     } for d in debitos]}
 
+# --- NOVO: ENDPOINT CONSOLIDADO PARA VELOCIDADE ---
+@app.get("/api/v2/dashboard-full/{ano}/{mes}")
+def get_dashboard_full(ano: int, mes: int):
+    try:
+        # Busca tudo em uma única conexão se possível ou em chamadas rápidas
+        fluxo = get_db_data(query_money_flow, (mes, ano))
+        resumo = get_db_data(fg_monthly_summary, (ano,))
+        categorias = get_db_data(fg_spent_by_category, (mes, ano))
+        debitos = get_db_data(fg_outstanding_debts)
+        # transacoes = get_db_data(with_no_filter) # Podemos manter separado se for muito pesado, mas vamos incluir
+        
+        # Visão Geral Relatório
+        report = get_db_data(fg_monthly_summary, (ano,)) # Reutilizando resumo por enquanto ou chamando específico
+        
+        # Auxiliares
+        cats_list = get_db_data(get_categories)
+        ways_list = get_db_data(get_payment_methods)
+        
+        return {
+            "fluxo": fluxo[0] if fluxo else {"vl_entradas": 0, "vl_saidas": 0, "custo_medio_mensal": 0, "saldo_atual": 0},
+            "resumo": resumo,
+            "gastos_categoria": categorias,
+            "debitos_pendentes": debitos,
+            "report_overview": report[0] if report else None,
+            "categorias_lista": cats_list,
+            "formas_pagamento_lista": ways_list
+        }
+    except Exception as e:
+        logger.error(f"Erro no dashboard consolidado: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/visao-geral-relatorio/{ano}/{mes}")
 def get_report_overview(ano: int, mes: int):
     periodo = (mes, ano)

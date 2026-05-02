@@ -199,19 +199,22 @@ function App() {
         return res.json();
       };
 
-      const dFluxo = await fetchJson(`/api/fluxo-caixa/${currentYear}/${currentMonth}`);
-      const dResumo = await fetchJson(`/api/resumo-mensal/${currentYear}`);
-      const dCategorias = await fetchJson(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`);
-      const dTrans = await fetchJson(`/api/transacoes`);
-      const dDebitos = await fetchJson(`/api/debitos-pendentes`);
-      const dReport = await fetchJson(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`);
-      const dCats = await fetchJson(`/api/categorias`);
-      const dWays = await fetchJson(`/api/formas-pagamento`);
+      // Usando o novo endpoint consolidado para velocidade máxima
+      const data = await fetchJson(`/api/v2/dashboard-full/${currentYear}/${currentMonth}`);
+      const dTrans = await fetchJson(`/api/transacoes`); // Mantemos transações separado por ser a maior lista
 
-      // Só atualizamos os estados se conseguirmos chegar até o fim com sucesso
-      setFluxo(dFluxo.fluxo)
+      setFluxo(data.fluxo)
+      setGastosCategoria(data.gastos_categoria || [])
+      setDebitosPendentes(data.debitos_pendentes || [])
+      setReportOverview(data.report_overview)
       
-      const cleanResumo = (dResumo.resumo || []).map(item => {
+      const cMap = {}; (data.categorias_lista || []).forEach(c => cMap[c[0]] = c[1]);
+      setCategoriasMap(cMap);
+      
+      const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[f[0]] = f[1]);
+      setFormasMap(fMap);
+
+      const cleanResumo = (data.resumo || []).map(item => {
         const parse = (val) => {
             if (typeof val !== 'string') return parseFloat(val) || 0;
             const s = val.replace(/[R$\s]/g, '').trim();
@@ -229,12 +232,10 @@ function App() {
       })
       setResumoMensal(cleanResumo)
       setTransacoes(dTrans.transacoes || [])
-      setDebitosPendentes(dDebitos.debitos || [])
-      setReportOverview(dReport)
-      setCategoriasMap(dCats.categorias || {})
-      setFormasMap(dWays.formas_pagamento || {})
+      setDebitosPendentes(data.debitos_pendentes || [])
+      setReportOverview(data.report_overview)
 
-      const formattedCats = Object.entries(dCategorias.gastos || {}).map(([name, value]) => ({
+      const formattedCats = Object.entries(data.gastos_categoria || {}).map(([name, value]) => ({
         name,
         value: parseFloat(value) || 0
       })).filter(cat => cat.value > 0)
@@ -242,7 +243,6 @@ function App() {
 
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
-      // Não resetamos os estados aqui para evitar que os dados "sumam" da tela em caso de erro temporário
     } finally {
       setLoading(false)
     }
