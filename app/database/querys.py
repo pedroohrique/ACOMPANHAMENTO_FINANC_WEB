@@ -133,7 +133,7 @@ def with_filter():
     return query    
         
 def with_no_filter():
-    query = """SELECT TOP 200
+    query = """SELECT
                     CONVERT(VARCHAR, AF.DT_COMPRA, 103) AS "DT Compra",
                     CONVERT(VARCHAR, AF.DT_PAGAMENTO, 103) AS "DT Pagamento",
                     AF.VALOR_TOTAL "Total",
@@ -159,13 +159,17 @@ def with_no_filter():
 
 def fg_total_exp(params):
     query = """SELECT 
-                SUM(AF.VALOR_PARCELA)
+                SUM(THF.VL_PARCELA)
             FROM
-                TB_ACOMPANHAMENTO_FINANC AF
+                TB_HISTORICO_FINANC THF
+                JOIN TB_REG_FINANC TRF ON TRF.ID_REGISTRO = THF.IDREGISTRO
             WHERE
-                AF.IDCATEGORIA NOT IN (800, 900)
-                AND MONTH(AF.DT_PAGAMENTO) = ?
-                AND YEAR(AF.DT_PAGAMENTO) = ?;"""
+                TRF.IDCATEGORIA NOT IN (800, 900)
+                AND THF.MES_DEBITO_PARCELA = ?
+                AND THF.ANO_DEBITO_PARCELA = ?
+            GROUP BY
+                THF.MES_DEBITO_PARCELA,
+                THF.ANO_DEBITO_PARCELA;"""
     
     connection,cursor = database_connection()
     
@@ -173,7 +177,7 @@ def fg_total_exp(params):
         with connection:
             cursor.execute(query, params)
             resultado_query =  cursor.fetchone()
-            return resultado_query[0] if resultado_query else 0
+            return resultado_query[0]
     
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
@@ -335,39 +339,71 @@ def fg_monthly_summary(params):
         cursor.close()
 
 def query_money_flow(params):
-    query = """
-        DECLARE @MES INT = ?;
-        DECLARE @ANO INT = ?;
+    query = """WITH BASE AS (
+                    SELECT IDREGISTRO, DATA_REGISTRO
+                    FROM TB_FLUXO_CAIXA
+                    WHERE 
+                        MONTH(DATA_REGISTRO) = ?
+                        AND YEAR(DATA_REGISTRO) = ? 
+                ),
+                VL_ACUMULADO AS (
+                    SELECT TOP 1 
+                        IDREGISTRO, 
+                        VALOR_ACUMULADO AS VL_ACUMULADO
+                    FROM TB_FLUXO_CAIXA 
+                    ORDER BY ID_FLUXO DESC
+                ),
+                VL_SAIDAS AS (
+                    SELECT 
+                        IDREGISTRO,
+                        SUM(VALOR) AS VL_SAIDAS
+                    FROM TB_FLUXO_CAIXA 
+                    WHERE IDCATEGORIA != 800 
+                    GROUP BY IDREGISTRO
+                ),
+                VL_ENTRADAS AS (
+                    SELECT 
+                        IDREGISTRO,
+                        COALESCE(SUM(VALOR), 0) AS VL_ENTRADAS
+                    FROM TB_FLUXO_CAIXA 
+                    WHERE IDCATEGORIA = 800 
+                    GROUP BY IDREGISTRO
+                ),
+                VL_MEDIA_SAIDAS AS (
+                    SELECT 
+                        AVG(TOTAL_MES) AS MEDIA_MENSAL
+                    FROM (
+                        SELECT 
+                            SUM(H.VL_PARCELA) AS TOTAL_MES
+                        FROM TB_HISTORICO_FINANC H
+                        JOIN TB_REG_FINANC R 
+                            ON R.ID_REGISTRO = H.IDREGISTRO
+                        WHERE 
+                            R.IDCATEGORIA NOT IN (800, 900)
+                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
+                            >= DATEFROMPARTS(YEAR(GETDATE()), 1, 1)
+                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
+                            <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+                        GROUP BY 
+                            MES_DEBITO_PARCELA, 
+                            ANO_DEBITO_PARCELA
+                    ) X
+                ),
+                VL_GLOBAL AS (
+                    SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC
+                )
 
-        DECLARE @VL_ENTRADAS DECIMAL(18,2) = COALESCE((
-            SELECT SUM(VALOR_TOTAL) 
-            FROM TB_ACOMPANHAMENTO_FINANC 
-            WHERE MONTH(DT_PAGAMENTO) = @MES AND YEAR(DT_PAGAMENTO) = @ANO AND IDCATEGORIA = 800
-        ), 0);
-
-        DECLARE @VL_SAIDAS DECIMAL(18,2) = COALESCE((
-            SELECT SUM(VALOR_PARCELA) 
-            FROM TB_ACOMPANHAMENTO_FINANC 
-            WHERE MONTH(DT_PAGAMENTO) = @MES AND YEAR(DT_PAGAMENTO) = @ANO AND IDCATEGORIA != 800
-        ), 0);
-
-        DECLARE @SALDO_ATUAL DECIMAL(18,2) = COALESCE((
-            SELECT SUM(CASE WHEN IDCATEGORIA = 800 THEN VALOR_TOTAL ELSE -VALOR_PARCELA END) FROM TB_ACOMPANHAMENTO_FINANC
-        ), 0);
-
-        DECLARE @CUSTO_MEDIO DECIMAL(18,2) = COALESCE((
-            SELECT AVG(TOTAL_MES) FROM (
-                SELECT SUM(VALOR_PARCELA) AS TOTAL_MES
-                FROM TB_ACOMPANHAMENTO_FINANC
-                WHERE IDCATEGORIA NOT IN (800, 900)
-                  AND YEAR(DT_PAGAMENTO) = @ANO
-                  AND MONTH(DT_PAGAMENTO) <= @MES
-                GROUP BY MONTH(DT_PAGAMENTO), YEAR(DT_PAGAMENTO)
-            ) X
-        ), 0);
-
-        SELECT @VL_ENTRADAS AS VL_ENTRADAS, @VL_SAIDAS AS VL_SAIDAS, @CUSTO_MEDIO AS CUSTO_MEDIO, @SALDO_ATUAL AS SALDO_ATUAL;
-    """
+                SELECT 
+                    COALESCE(SUM(T2.VL_ENTRADAS),0) AS VL_ENTRADAS,
+                    COALESCE(SUM(T3.VL_SAIDAS),0)   AS VL_SAIDAS,
+                    MAX(M.MEDIA_MENSAL)  AS CUSTO_MEDIO_MENSAL,
+                    COALESCE(MAX(G.VALOR_ACUMULADO), 0) AS SALDO_ATUAL
+                FROM 
+                    BASE B
+                    LEFT JOIN VL_ENTRADAS  T2 ON T2.IDREGISTRO = B.IDREGISTRO
+                    LEFT JOIN VL_SAIDAS    T3 ON T3.IDREGISTRO = B.IDREGISTRO
+                    CROSS JOIN VL_MEDIA_SAIDAS M
+                    CROSS JOIN VL_GLOBAL G;"""
 
     connection, cursor = database_connection()
     try:
@@ -379,5 +415,3 @@ def query_money_flow(params):
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
         cursor.close()
-
-
