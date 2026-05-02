@@ -271,7 +271,7 @@ def get_dashboard_full(ano: int, mes: int):
         fluxo_raw = get_db_data(query_money_flow, (mes, ano))
         resumo_raw = get_db_data(fg_monthly_summary, (ano,))
         categorias_raw = get_db_data(fg_spent_by_category, (mes, ano))
-        debitos_raw = get_db_data(fg_outstanding_debts, (0, 0))
+        debitos_raw = get_db_data(fg_outstanding_debts, (0, 1))
         cats_list = get_db_data(category_map)
         ways_list = get_db_data(payment_method_map)
         
