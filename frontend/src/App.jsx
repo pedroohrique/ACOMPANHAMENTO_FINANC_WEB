@@ -2,30 +2,18 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   LayoutDashboard, 
   Receipt, 
-  CreditCard, 
   TrendingUp, 
-  TrendingDown, 
   Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
   Plus,
   Filter,
   LogOut,
-  Calendar,
-  FileText,
   Trash2,
   Edit,
   Search,
-  MoreVertical,
   X,
   Zap,
   DollarSign,
-  Download,
-  User,
-  Mail,
-  Lock,
-  UserPlus,
-  Repeat
+  Download
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -38,34 +26,25 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
   LabelList
 } from 'recharts'
 import './App.css'
 
-// API Base URL - FORÇANDO CAMINHO RELATIVO
-const API_URL = ''; 
+// API Base URL - Original (Direto para o Ngrok ou Proxy Simples)
+const API_URL = import.meta.env.VITE_API_URL || 'https://noncongruous-chiffonade-bernarda.ngrok-free.dev'; 
 
-// Helper para tratar a URL
-const getUrl = (endpoint) => {
-    return `${API_URL}${endpoint}`;
+const API_HEADERS = {
+  'Content-Type': 'application/json',
+  'X-API-Key': 'pedro_financas_2026_seguro_!@'
 };
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value || 0)
-}
+const getUrl = (endpoint) => {
+    const url = new URL(`${API_URL}${endpoint}`);
+    url.searchParams.append('ngrok-skip-browser-warning', '1');
+    return url.toString();
+};
 
 function App() {
-  // Auth States
-  const [token, setToken] = useState(localStorage.getItem('token'))
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')))
-  const [authStep, setAuthStep] = useState('login') // login, register, verify
-  const [authForm, setAuthForm] = useState({ nome: '', email: '', password: '', code: '' })
-  const [authMessage, setAuthMessage] = useState({ text: '', type: '' })
-
   // Dashboard States
   const [activeTab, setActiveTab] = useState('dashboard')
   const [fluxo, setFluxo] = useState(null)
@@ -102,124 +81,44 @@ function App() {
     { id: 10, name: 'Outubro' }, { id: 11, name: 'Novembro' }, { id: 12, name: 'Dezembro' }
   ]
 
-  // Helper for headers
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-    'X-Auth-Token': token,
-    'Authorization': `Bearer ${token}`,
-    'X-API-Key': 'pedro_financas_2026_seguro_!@'
-  });
-
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setToken(null)
-    setUser(null)
-    setAuthStep('login')
-  }
-
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault()
-    setAuthMessage({ text: '', type: '' })
-    setLoading(true)
-
-    try {
-      if (authStep === 'register') {
-        const res = await fetch(getUrl('/api/auth/register'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body: JSON.stringify({ nome: authForm.nome, email: authForm.email, password: authForm.password })
-        })
-        const data = await res.json()
-        if (res.ok) {
-          setAuthMessage({ text: 'Cadastro realizado! Verifique o código no console do servidor.', type: 'success' })
-          setAuthStep('verify')
-        } else {
-          setAuthMessage({ text: data.detail || 'Erro ao registrar', type: 'error' })
-        }
-      } 
-      else if (authStep === 'verify') {
-        const res = await fetch(getUrl('/api/auth/verify'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body: JSON.stringify({ email: authForm.email, code: authForm.code })
-        })
-        const data = await res.json()
-        if (res.ok) {
-          setAuthMessage({ text: 'E-mail verificado! Agora você pode fazer login.', type: 'success' })
-          setAuthStep('login')
-        } else {
-          setAuthMessage({ text: data.detail || 'Código inválido', type: 'error' })
-        }
-      }
-      else if (authStep === 'login') {
-        const res = await fetch(getUrl('/api/auth/login'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body: JSON.stringify({ email: authForm.email, password: authForm.password })
-        })
-        const data = await res.json()
-        if (res.ok) {
-          localStorage.setItem('token', data.access_token)
-          localStorage.setItem('user', JSON.stringify(data.user))
-          setToken(data.access_token)
-          setUser(data.user)
-        } else {
-          setAuthMessage({ text: data.detail || 'Credenciais inválidas', type: 'error' })
-        }
-      }
-    } catch (error) {
-      setAuthMessage({ text: `Erro: ${error.message || 'Conexão recusada pelo servidor'}`, type: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const fetchData = async () => {
-    if (!token) return
     try {
       setLoading(true)
-      const fetchOptions = { headers: getHeaders() };
+      const fetchOptions = { headers: API_HEADERS };
       
-      // Realizando buscas de forma sequencial para não sobrecarregar o túnel do Ngrok
-      const fetchJson = async (url) => {
-        const res = await fetch(getUrl(url), fetchOptions);
-        if (res.status === 401) {
-            handleLogout();
-            throw new Error("Não autorizado");
-        }
-        return res.json();
-      };
+      const [resFluxo, resResumo, resCategorias, resTrans, resDebitos, resReport, resCats, resWays] = await Promise.all([
+        fetch(getUrl(`/api/fluxo-caixa/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/resumo-mensal/${currentYear}`), fetchOptions),
+        fetch(getUrl(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/transacoes`), fetchOptions),
+        fetch(getUrl(`/api/debitos-pendentes`), fetchOptions),
+        fetch(getUrl(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`), fetchOptions),
+        fetch(getUrl(`/api/categorias`), fetchOptions),
+        fetch(getUrl(`/api/formas-pagamento`), fetchOptions)
+      ])
 
-      const dFluxo = await fetchJson(`/api/fluxo-caixa/${currentYear}/${currentMonth}`);
-      const dResumo = await fetchJson(`/api/resumo-mensal/${currentYear}`);
-      const dCategorias = await fetchJson(`/api/gastos-por-categoria/${currentYear}/${currentMonth}`);
-      const dTrans = await fetchJson(`/api/transacoes`);
-      const dDebitos = await fetchJson(`/api/debitos-pendentes`);
-      const dReport = await fetchJson(`/api/visao-geral-relatorio/${currentYear}/${currentMonth}`);
-      const dCats = await fetchJson(`/api/categorias`);
-      const dWays = await fetchJson(`/api/formas-pagamento`);
+      const dFluxo = await resFluxo.json()
+      const dResumo = await resResumo.json()
+      const dCategorias = await resCategorias.json()
+      const dTrans = await resTrans.json()
+      const dDebitos = await resDebitos.json()
+      const dReport = await resReport.json()
+      const dCats = await resCats.json()
+      const dWays = await resWays.json()
 
-      // Só atualizamos os estados se conseguirmos chegar até o fim com sucesso
       setFluxo(dFluxo.fluxo)
-      
-      const cleanResumo = (dResumo.resumo || []).map(item => {
-        const parse = (val) => {
-            if (typeof val !== 'string') return parseFloat(val) || 0;
-            const s = val.replace(/[R$\s]/g, '').trim();
-            if (s.includes(',')) {
-                return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
-            }
-            return parseFloat(s) || 0;
-        };
-        return {
-            ...item,
-            gasto: parse(item.gasto),
-            orcamento: parse(item.orcamento),
-            saldo: parse(item.saldo)
-        };
-      })
+      // Backend já envia valores numéricos (float), basta garantir que são números
+      const cleanResumo = (dResumo.resumo || []).map(item => ({
+        ...item,
+        orcamento: parseFloat(item.orcamento) || 0,
+        gasto: parseFloat(item.gasto) || 0,
+        saldo: parseFloat(item.saldo) || 0,
+        maior_gasto: parseFloat(item.maior_gasto) || 0,
+        acumulado: parseFloat(item.acumulado) || 0,
+        variacao: item.variacao != null ? parseFloat(item.variacao) : null,
+        percentual: item.percentual != null ? parseFloat(item.percentual) : null,
+        percentual_var: item.percentual_var != null ? parseFloat(item.percentual_var) : null
+      }))
       setResumoMensal(cleanResumo)
       setTransacoes(dTrans.transacoes || [])
       setDebitosPendentes(dDebitos.debitos || [])
@@ -235,81 +134,36 @@ function App() {
 
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
-      // Não resetamos os estados aqui para evitar que os dados "sumam" da tela em caso de erro temporário
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (token) fetchData()
-  }, [token])
+    fetchData()
+  }, [])
 
   const filteredTransacoes = useMemo(() => {
-    let base = transacoes;
-    if (activeTab === 'recurrences') {
-      base = base.filter(t => t.recorrente);
-    }
-
-    if (!searchTerm) return base
-    
-    const normalize = (str) => 
-      String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-      
-    const lowerSearch = normalize(searchTerm)
-    
-    return base.filter(t => 
-      normalize(t.descricao).includes(lowerSearch) ||
-      normalize(t.local).includes(lowerSearch) ||
-      normalize(t.categoria).includes(lowerSearch) ||
-      normalize(t.forma_pagamento).includes(lowerSearch) ||
-      normalize(t.dt_compra).includes(lowerSearch) ||
-      normalize(String(t.total)).includes(lowerSearch) ||
-      normalize(String(t.total).replace('.', ',')).includes(lowerSearch) ||
-      normalize(formatCurrency(t.total)).includes(lowerSearch) ||
-      normalize(String(t.valor_parcela)).includes(lowerSearch) ||
-      normalize(String(t.valor_parcela).replace('.', ',')).includes(lowerSearch) ||
-      normalize(formatCurrency(t.valor_parcela)).includes(lowerSearch)
+    if (!searchTerm) return transacoes
+    const lowerSearch = searchTerm.toLowerCase()
+    return transacoes.filter(t => 
+      t.descricao?.toLowerCase().includes(lowerSearch) ||
+      t.local?.toLowerCase().includes(lowerSearch) ||
+      t.categoria?.toLowerCase().includes(lowerSearch)
     )
-  }, [transacoes, searchTerm, activeTab])
+  }, [transacoes, searchTerm])
 
   const handleDelete = async (id) => {
     if (window.confirm("Deseja realmente excluir este lançamento?")) {
       try {
         const response = await fetch(getUrl(`/api/transacoes/${id}`), { 
           method: 'DELETE',
-          headers: getHeaders()
+          headers: API_HEADERS
         })
         if (response.ok) fetchData()
       } catch (error) {
         console.error("Erro delete:", error)
       }
-    }
-  }
-
-  const handleToggleRecorrencia = async (t) => {
-    try {
-      console.log("Objeto transação clicado:", t);
-      if (!t || !t.id) {
-        alert("Erro: ID da transação não encontrado.");
-        return;
-      }
-      const url = getUrl(`/api/transacoes/${t.id}/recorrencia`);
-      console.log("Chamando URL de recorrência:", url);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ recorrente: !t.recorrente })
-      })
-      if (response.ok) {
-        fetchData()
-      } else {
-        const err = await response.json()
-        alert("Erro ao salvar recorrência: " + (err.detail || "Erro desconhecido"));
-      }
-    } catch (error) {
-      console.error("Erro ao alterar recorrência:", error)
-      alert("Erro ao alterar recorrência: " + error.message)
     }
   }
 
@@ -365,16 +219,13 @@ function App() {
 
       const response = await fetch(url, {
         method,
-        headers: getHeaders(),
+        headers: API_HEADERS,
         body: JSON.stringify(body)
       })
 
       if (response.ok) {
         setShowModal(false)
         fetchData()
-      } else {
-        const err = await response.json()
-        alert(`Erro na operação: ${err.detail || 'Verifique os dados'}`)
       }
     } catch (error) {
       console.error("Erro submit:", error)
@@ -386,7 +237,7 @@ function App() {
     try {
       const response = await fetch(getUrl(`/api/exportar-relatorio`), {
         method: 'POST',
-        headers: getHeaders(),
+        headers: API_HEADERS,
         body: JSON.stringify({ mes: parseInt(exportData.mes), ano: parseInt(exportData.ano) })
       })
 
@@ -394,69 +245,17 @@ function App() {
         const res = await response.json()
         alert(`Relatório exportado com sucesso!\nSalvo em: ${res.path}`)
         setShowExportModal(false)
-      } else {
-        const err = await response.json()
-        alert(`Erro ao exportar: ${err.detail || 'Verifique os dados'}`)
       }
     } catch (error) {
       console.error("Erro export:", error)
     }
   }
 
-  // --- VIEW: LOGIN / REGISTER ---
-  if (!token) {
-    return (
-      <div className="auth-container">
-        <div className="auth-card glass animate-fade-in">
-          <div className="auth-header">
-            <div className="logo-icon large"><Wallet size={40} color="#10b981" /></div>
-            <h2>{authStep === 'login' ? 'Bem-vindo de volta' : authStep === 'register' ? 'Criar nova conta' : 'Verificação'}</h2>
-            <p className="auth-subtitle">
-              {authStep === 'login' ? 'Acesse seu controle financeiro' : authStep === 'register' ? 'Cadastre-se para começar' : 'Insira o código enviado (veja o terminal)'}
-            </p>
-          </div>
-
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
-            {authStep === 'register' && (
-              <div className="form-group">
-                <label><User size={16} /> Nome Completo</label>
-                <input type="text" placeholder="Seu nome" value={authForm.nome} onChange={e => setAuthForm({...authForm, nome: e.target.value})} required />
-              </div>
-            )}
-            <div className="form-group">
-              <label><Mail size={16} /> E-mail</label>
-              <input type="email" placeholder="email@exemplo.com" value={authForm.email} onChange={e => setAuthForm({...authForm, email: e.target.value})} required />
-            </div>
-            {authStep !== 'verify' && (
-              <div className="form-group">
-                <label><Lock size={16} /> Senha</label>
-                <input type="password" placeholder="••••••••" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} required />
-              </div>
-            )}
-            {authStep === 'verify' && (
-              <div className="form-group">
-                <label><Zap size={16} /> Código de Verificação</label>
-                <input type="text" placeholder="123456" value={authForm.code} onChange={e => setAuthForm({...authForm, code: e.target.value})} required />
-              </div>
-            )}
-
-            {authMessage.text && <div className={`auth-alert ${authMessage.type}`}>{authMessage.text}</div>}
-
-            <button type="submit" className="btn btn-primary full-width" disabled={loading}>
-              {loading ? 'Aguarde...' : authStep === 'login' ? 'Entrar' : authStep === 'register' ? 'Registrar' : 'Verificar'}
-            </button>
-          </form>
-
-          <div className="auth-footer">
-            {authStep === 'login' ? (
-              <p>Não tem uma conta? <button onClick={() => setAuthStep('register')}>Cadastre-se</button></p>
-            ) : (
-              <p>Já tem uma conta? <button onClick={() => setAuthStep('login')}>Faça login</button></p>
-            )}
-          </div>
-        </div>
-      </div>
-    )
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value || 0)
   }
 
   const daysRemaining = (() => {
@@ -471,24 +270,15 @@ function App() {
     <div className="app-container">
       <aside className="sidebar glass">
         <div className="sidebar-logo"><div className="logo-icon"><Wallet size={24} color="#10b981" /></div><h1>Finance</h1></div>
-        <div className="user-profile">
-            <div className="user-avatar">{user?.nome?.charAt(0) || 'U'}</div>
-            <div className="user-info">
-                <p className="user-name">{user?.nome || 'Usuário'}</p>
-                <p className="user-email">{user?.email}</p>
-            </div>
-        </div>
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}><LayoutDashboard size={20} /><span>Dashboard</span></button>
           <button className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}><Receipt size={20} /><span>Lançamentos</span></button>
-          <button className={`nav-item ${activeTab === 'recurrences' ? 'active' : ''}`} onClick={() => setActiveTab('recurrences')}><Repeat size={20} /><span>Recorrências</span></button>
         </nav>
-        <div className="sidebar-footer"><button className="nav-item logout" onClick={handleLogout}><LogOut size={20} /><span>Sair</span></button></div>
       </aside>
 
       <main className="main-content">
         <header className="main-header">
-          <div className="header-search"><h2>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'recurrences' ? 'Recorrências Ativas' : 'Lançamentos'}</h2></div>
+          <div className="header-search"><h2>{activeTab === 'dashboard' ? 'Dashboard' : 'Lançamentos'}</h2></div>
           <div className="header-actions">
             {activeTab === 'dashboard' && <button className="btn btn-secondary glass" onClick={() => setShowExportModal(true)}><Download size={18} /><span>Exportar</span></button>}
             <button className="btn btn-primary" onClick={() => openModal('cadastrar')}><Plus size={18} /><span>Novo Registro</span></button>
@@ -519,7 +309,7 @@ function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="mes" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => val >= 1000 ? `R$ ${(val/1000).toFixed(1)}k` : `R$ ${val}`} />
                     <Tooltip 
                       formatter={(value) => formatCurrency(value)} 
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} 
@@ -546,7 +336,7 @@ function App() {
                       <Pie data={gastosCategoria} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
                         {gastosCategoria.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
-                      <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="category-table-mini">
@@ -556,7 +346,7 @@ function App() {
                           <tr key={idx}>
                             <td><span className="dot" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span></td>
                             <td className="cat-name">{cat.name}</td>
-                            <td className="cat-val">R$ {cat.value.toFixed(2)}</td>
+                            <td className="cat-val">{formatCurrency(cat.value)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -617,32 +407,8 @@ function App() {
                 <table className="modern-table">
                   <thead><tr><th>Data</th><th>Pagto</th><th>Descrição</th><th>Categoria</th><th>Local</th><th>Total</th><th>Parcela</th><th>Pendente</th><th>Forma</th><th>Ações</th></tr></thead>
                   <tbody>
-                    {filteredTransacoes.map((t) => (
-                      <tr key={t.id}>
-                        <td>{t.dt_compra}</td>
-                        <td>{t.dt_pagamento}</td>
-                        <td className="font-semibold">{t.descricao}</td>
-                        <td><span className="badge-category">{t.categoria}</span></td>
-                        <td>{t.local}</td>
-                        <td>{formatCurrency(t.total)}</td>
-                        <td>{formatCurrency(t.valor_parcela)}</td>
-                        <td className={(t.valor_pendente && parseFloat(t.valor_pendente) > 0) ? "text-danger" : ""}>{formatCurrency(t.valor_pendente)}</td>
-                        <td>{t.forma_pagamento}</td>
-                        <td>
-                          <div className="action-buttons">
-                            <button 
-                              className={`action-btn ${t.recorrente ? 'recorrente-active' : ''}`} 
-                              title={t.recorrente ? "Remover Recorrência" : "Marcar como Recorrente"} 
-                              onClick={() => handleToggleRecorrencia(t)}
-                              style={{ color: t.recorrente ? 'var(--accent-secondary)' : '' }}
-                            >
-                              <Repeat size={16} />
-                            </button>
-                            <button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button>
-                            <button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button>
-                          </div>
-                        </td>
-                      </tr>
+                    {transacoes.map((t) => (
+                      <tr key={t.id}><td>{t.dt_compra}</td><td>{t.dt_pagamento}</td><td className="font-semibold">{t.descricao}</td><td><span className="badge-category">{t.categoria}</span></td><td>{t.local}</td><td>{t.total}</td><td>{t.valor_parcela}</td><td className={t.valor_pendente !== "R$ 0,00" ? "text-danger" : ""}>{t.valor_pendente}</td><td>{t.forma_pagamento}</td><td><div className="action-buttons"><button className="action-btn edit" onClick={() => openModal('atualizar', t)}><Edit size={16} /></button><button className="action-btn delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button></div></td></tr>
                     ))}
                   </tbody>
                 </table>
