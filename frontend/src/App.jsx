@@ -107,7 +107,8 @@ function App() {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
     'X-Auth-Token': token,
-    'Authorization': `Bearer ${token}`
+    'Authorization': `Bearer ${token}`,
+    'X-API-Key': 'pedro_financas_2026_seguro_!@'
   });
 
   const handleLogout = () => {
