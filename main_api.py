@@ -55,6 +55,9 @@ app = FastAPI(title="API Acompanhamento Financeiro")
 
 @app.middleware("http")
 async def verify_api_key(request: Request, call_next):
+    # Log para depuração
+    logger.info(f"Recebendo requisição: {request.method} {request.url.path}")
+    
     # Pula a verificação para opções (CORS)
     if request.method == "OPTIONS":
         return await call_next(request)
@@ -309,9 +312,11 @@ def delete_transaction(id_registro: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/transacoes/{id_registro}/recorrencia")
+@app.post("/api/transacoes/{id_registro}/recorrencia/")
 def update_recorrencia(id_registro: int, data: Dict[str, bool] = Body(...)):
     try:
         status = data.get("recorrente", False)
+        logger.info(f"Alterando recorrência do ID {id_registro} para {status}")
         toggle_recorrencia_status(id_registro, status)
         return {"status": "success", "recorrente": status}
     except Exception as e:
