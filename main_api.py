@@ -298,7 +298,10 @@ def get_dashboard_full(ano: int, mes: int):
             "saldo": parse_currency(linha[4]), 
             "percentual": linha[5], 
             "qtd": linha[6], 
-            "maior_gasto": parse_currency(linha[7])
+            "maior_gasto": parse_currency(linha[7]),
+            "acumulado": parse_currency(linha[8]),
+            "variacao": parse_currency(linha[9]),
+            "percentual_var": linha[10]
         } for linha in (resumo_raw or [])]
         
         # Mapeia Categorias
