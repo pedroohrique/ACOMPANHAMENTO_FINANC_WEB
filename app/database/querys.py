@@ -177,7 +177,7 @@ def fg_total_exp(params):
         with connection:
             cursor.execute(query, params)
             resultado_query =  cursor.fetchone()
-            return resultado_query[0]
+            return resultado_query[0] if resultado_query else 0
     
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
@@ -344,13 +344,17 @@ def query_money_flow(params):
         DECLARE @ANO INT = ?;
 
         DECLARE @VL_ENTRADAS DECIMAL(18,2) = COALESCE((
-            SELECT SUM(VALOR) FROM TB_FLUXO_CAIXA 
-            WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA = 800
+            SELECT SUM(FC.VALOR) 
+            FROM TB_FLUXO_CAIXA FC
+            JOIN TB_REG_FINANC RF ON RF.ID_REGISTRO = FC.IDREGISTRO
+            WHERE MONTH(RF.DATA_GASTO) = @MES AND YEAR(RF.DATA_GASTO) = @ANO AND FC.IDCATEGORIA = 800
         ), 0);
 
         DECLARE @VL_SAIDAS DECIMAL(18,2) = COALESCE((
-            SELECT SUM(VALOR) FROM TB_FLUXO_CAIXA 
-            WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA != 800
+            SELECT SUM(FC.VALOR) 
+            FROM TB_FLUXO_CAIXA FC
+            JOIN TB_REG_FINANC RF ON RF.ID_REGISTRO = FC.IDREGISTRO
+            WHERE MONTH(RF.DATA_GASTO) = @MES AND YEAR(RF.DATA_GASTO) = @ANO AND FC.IDCATEGORIA != 800
         ), 0);
 
         DECLARE @SALDO_ATUAL DECIMAL(18,2) = COALESCE((
@@ -363,8 +367,8 @@ def query_money_flow(params):
                 FROM TB_HISTORICO_FINANC H
                 JOIN TB_REG_FINANC R ON R.ID_REGISTRO = H.IDREGISTRO
                 WHERE R.IDCATEGORIA NOT IN (800, 900)
-                  AND H.ANO_DEBITO_PARCELA = YEAR(GETDATE())
-                  AND H.MES_DEBITO_PARCELA <= MONTH(GETDATE())
+                  AND H.ANO_DEBITO_PARCELA = @ANO
+                  AND H.MES_DEBITO_PARCELA <= @MES
                 GROUP BY MES_DEBITO_PARCELA, ANO_DEBITO_PARCELA
             ) X
         ), 0);
