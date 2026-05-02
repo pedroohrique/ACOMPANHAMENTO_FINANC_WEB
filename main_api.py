@@ -96,20 +96,57 @@ def get_categories():
 def get_payment_methods():
     return {"formas_pagamento": get_db_data(payment_method_map) or {}}
 
+# --- ROTAS DE AUTENTICAÇÃO ---
+USERS_FILE = os.path.join("app", "database", "users.json")
+
+def get_users():
+    if not os.path.exists(USERS_FILE): return {}
+    try:
+        with open(USERS_FILE, "r") as f: return json.load(f)
+    except: return {}
+
+def save_users(users):
+    os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+    with open(USERS_FILE, "w") as f: json.dump(users, f)
+
+@app.post("/api/auth/register")
+def register(data: Dict[str, Any]):
+    users = get_users()
+    email = data.get("email")
+    if not email: raise HTTPException(status_code=400, detail="Email obrigatorio")
+    if email in users: raise HTTPException(status_code=400, detail="Usuario ja cadastrado")
+    users[email] = {
+        "nome": data.get("nome"),
+        "password": data.get("password"),
+        "verified": True
+    }
+    save_users(users)
+    return {"message": "Usuario registrado"}
+
+@app.post("/api/auth/login")
+def login(data: Dict[str, Any]):
+    users = get_users()
+    email = data.get("email")
+    password = data.get("password")
+    if email not in users or users[email]["password"] != password:
+        raise HTTPException(status_code=401, detail="Email ou senha invalidos")
+    return {
+        "access_token": f"token_{email}",
+        "user": {"nome": users[email]["nome"], "email": email}
+    }
+
 # --- ROTAS DE DASHBOARD / RELATÓRIO ---
 def parse_currency(value):
     if value is None: return 0.0
     if isinstance(value, (int, float)): return float(value)
     if hasattr(value, '__float__'): return float(value)
     
-    s = str(value).replace('R$', '').replace(' ', '').strip()
+    s = str(value).replace('R$', '').replace(' ', '').replace('\xa0', '').strip()
     if not s: return 0.0
     
-    # Lógica inteligente:
-    # 1. Se tem vírgula e ponto: 1.234,56 -> BR
-    # 2. Se tem só vírgula: 1234,56 -> BR
-    # 3. Se tem só ponto: 1234.56 -> US (Não remover o ponto!)
+    # Se tem vírgula, tratamos como formato BR (1.234,56 ou 1234,56)
     if ',' in s:
+        # Remove pontos de milhar e troca vírgula decimal por ponto
         s = s.replace('.', '').replace(',', '.')
     
     try:
