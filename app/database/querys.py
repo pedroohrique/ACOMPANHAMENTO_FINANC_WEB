@@ -45,7 +45,7 @@ def update_financial(array, id_registro):
                     IDFORMA_PAGAMENTO = ?,
                     PARCELAMENTO = ?,
                     N_PARCELAS = ?
-                WHERE ID_REGISTRO = ?"""
+                WHERE ID_REG_FINANC = ?"""
     try:
     
         with connection:
@@ -99,7 +99,7 @@ def record_financial(array):
 
 def deleta_item_treeview(id):
     connection, cursor = database_connection()
-    query = "DELETE FROM TB_REG_FINANC WHERE ID_REGISTRO = ?"
+    query = "DELETE FROM TB_REG_FINANC WHERE ID_REG_FINANC = ?"
     try:
         with connection:
             cursor.execute(query, id)
@@ -339,65 +339,37 @@ def fg_monthly_summary(params):
         cursor.close()
 
 def query_money_flow(params):
-    query = """WITH BASE AS (
-                    SELECT IDREGISTRO, DATA_REGISTRO
-                    FROM TB_FLUXO_CAIXA
-                    WHERE 
-                        MONTH(DATA_REGISTRO) = ?
-                        AND YEAR(DATA_REGISTRO) = ? 
-                ),
-                VL_ACUMULADO AS (
-                    SELECT TOP 1 
-                        IDREGISTRO, 
-                        VALOR_ACUMULADO AS VL_ACUMULADO
-                    FROM TB_FLUXO_CAIXA 
-                    ORDER BY ID_FLUXO DESC
-                ),
-                VL_SAIDAS AS (
-                    SELECT 
-                        IDREGISTRO,
-                        SUM(VALOR) AS VL_SAIDAS
-                    FROM TB_FLUXO_CAIXA 
-                    WHERE IDCATEGORIA != 800 
-                    GROUP BY IDREGISTRO
-                ),
-                VL_ENTRADAS AS (
-                    SELECT 
-                        IDREGISTRO,
-                        COALESCE(SUM(VALOR), 0) AS VL_ENTRADAS
-                    FROM TB_FLUXO_CAIXA 
-                    WHERE IDCATEGORIA = 800 
-                    GROUP BY IDREGISTRO
-                ),
-                VL_MEDIA_SAIDAS AS (
-                    SELECT 
-                        AVG(TOTAL_MES) AS MEDIA_MENSAL
-                    FROM (
-                        SELECT 
-                            SUM(H.VL_PARCELA) AS TOTAL_MES
-                        FROM TB_HISTORICO_FINANC H
-                        JOIN TB_REG_FINANC R 
-                            ON R.ID_REGISTRO = H.IDREGISTRO
-                        WHERE 
-                            R.IDCATEGORIA NOT IN (800, 900)
-                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
-                            >= DATEFROMPARTS(YEAR(GETDATE()), 1, 1)
-                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
-                            <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
-                        GROUP BY 
-                            MES_DEBITO_PARCELA, 
-                            ANO_DEBITO_PARCELA
-                    ) X
-                ),
-                VL_GLOBAL AS (
-                    SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC
-                )
+    query = """
+        DECLARE @MES INT = ?;
+        DECLARE @ANO INT = ?;
 
+        WITH VL_MEDIA_SAIDAS AS (
+            SELECT 
+                AVG(TOTAL_MES) AS MEDIA_MENSAL
+            FROM (
                 SELECT 
-                    (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA = 800) AS VL_ENTRADAS,
-                    (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA != 800) AS VL_SAIDAS,
-                    (SELECT MEDIA_MENSAL FROM VL_MEDIA_SAIDAS) AS CUSTO_MEDIO_MENSAL,
-                    (SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC) AS SALDO_ATUAL;"""
+                    SUM(H.VL_PARCELA) AS TOTAL_MES
+                FROM TB_HISTORICO_FINANC H
+                JOIN TB_REG_FINANC R 
+                    ON R.ID_REGISTRO = H.IDREGISTRO
+                WHERE 
+                    R.IDCATEGORIA NOT IN (800, 900)
+                    AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
+                    >= DATEFROMPARTS(YEAR(GETDATE()), 1, 1)
+                    AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
+                    <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+                GROUP BY 
+                    MES_DEBITO_PARCELA, 
+                    ANO_DEBITO_PARCELA
+            ) X
+        )
+
+        SELECT 
+            (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA = 800) AS VL_ENTRADAS,
+            (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA != 800) AS VL_SAIDAS,
+            (SELECT COALESCE(MAX(MEDIA_MENSAL), 0) FROM VL_MEDIA_SAIDAS) AS CUSTO_MEDIO_MENSAL,
+            (SELECT TOP 1 COALESCE(VALOR_ACUMULADO, 0) FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC) AS SALDO_ATUAL;
+    """
 
     connection, cursor = database_connection()
     try:
