@@ -163,13 +163,17 @@ def get_report_overview(ano: int, mes: int):
 
 # --- BACKGROUND TASKS ---
 def process_monthly_recurrences():
+    conn, cursor = None, None
     try:
         recorrentes = get_recorrencias_ids()
         if not recorrentes:
             return
 
         query = with_no_filter()
-        conn, cursor = database_connection()
+        db_res = database_connection()
+        if not db_res: return
+        conn, cursor = db_res
+        
         with conn:
             cursor.execute(query)
             rows = cursor.fetchall()
@@ -226,13 +230,19 @@ def process_monthly_recurrences():
 
     except Exception as e:
         logger.error(f"Erro no processamento de recorrencias: {e}")
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
 
 # --- ROTAS DE REGISTROS (CRUD) ---
 @app.get("/api/transacoes")
 def get_transactions(background_tasks: BackgroundTasks):
     background_tasks.add_task(process_monthly_recurrences)
     query = with_no_filter()
-    conn, cursor = database_connection()
+    db_res = database_connection()
+    if not db_res:
+        raise HTTPException(status_code=500, detail="Erro de conexão com o banco de dados")
+    conn, cursor = db_res
     try:
         recorrentes = get_recorrencias_ids()
         with conn:
