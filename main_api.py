@@ -267,28 +267,64 @@ def get_pending_debts():
 @app.get("/api/v2/dashboard-full/{ano}/{mes}")
 def get_dashboard_full(ano: int, mes: int):
     try:
-        # Busca tudo em uma única conexão se possível ou em chamadas rápidas
-        fluxo = get_db_data(query_money_flow, (mes, ano))
-        resumo = get_db_data(fg_monthly_summary, (ano,))
-        categorias = get_db_data(fg_spent_by_category, (mes, ano))
-        debitos = get_db_data(fg_outstanding_debts)
-        cats_list = get_db_data(get_categories)
-        ways_list = get_db_data(get_payment_methods)
+        # Busca dados brutos
+        fluxo_raw = get_db_data(query_money_flow, (mes, ano))
+        resumo_raw = get_db_data(fg_monthly_summary, (ano,))
+        categorias_raw = get_db_data(fg_spent_by_category, (mes, ano))
+        debitos_raw = get_db_data(fg_outstanding_debts, ()) # Passa params vazio
+        cats_list = get_db_data(category_map)
+        ways_list = get_db_data(payment_method_map)
         
-        # Visão Geral Relatório (Filtrado pelo mês atual)
-        report_curr = next((m for m in resumo if m.get('mes') == mes), None)
+        # Mapeia Fluxo
+        f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
+        fluxo_mapped = {
+            "vl_entradas": f[0], 
+            "vl_saidas": f[1], 
+            "custo_medio_mensal": f[2], 
+            "saldo_atual": f[3]
+        }
+        
+        # Mapeia Resumo
+        resumo_mapped = [{
+            "mes": str(linha[0]).strip(), 
+            "ano": linha[1], 
+            "orcamento": parse_currency(linha[2]), 
+            "gasto": parse_currency(linha[3]), 
+            "saldo": parse_currency(linha[4]), 
+            "percentual": linha[5], 
+            "qtd": linha[6], 
+            "maior_gasto": parse_currency(linha[7])
+        } for linha in (resumo_raw or [])]
+        
+        # Mapeia Categorias (Converte dict para lista de objetos)
+        categorias_mapped = [{"name": k, "value": v} for k, v in (categorias_raw or {}).items()]
+        
+        # Mapeia Débitos
+        debitos_mapped = [{
+            "descricao": d[0], "mes_compra": d[1], "ano": d[2], 
+            "parcelas_pendentes": d[3], "valor_total": d[4], 
+            "valor_parcela": d[5], "valor_pendente": d[6], 
+            "mes_ultimo_debito": d[7], "ano_ultimo_debito": d[8]
+        } for d in (debitos_raw or [])]
+        
+        # Report Overview (Filtra do resumo mapeado)
+        meses_nomes = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
+        nome_mes_atual = meses_nomes[mes-1]
+        report_curr = next((m for m in resumo_mapped if m['mes'] == nome_mes_atual), None)
         
         return {
-            "fluxo": fluxo[0] if fluxo else {"vl_entradas": 0, "vl_saidas": 0, "custo_medio_mensal": 0, "saldo_atual": 0},
-            "resumo": resumo,
-            "gastos_categoria": categorias,
-            "debitos_pendentes": debitos,
+            "fluxo": fluxo_mapped,
+            "resumo": resumo_mapped,
+            "gastos_categoria": categorias_mapped,
+            "debitos_pendentes": debitos_mapped,
             "report_overview": report_curr,
-            "categorias_lista": cats_list,
-            "formas_pagamento_lista": ways_list
+            "categorias_lista": [[id, desc] for desc, id in (cats_list or {}).items()],
+            "formas_pagamento_lista": [[id, desc] for desc, id in (ways_list or {}).items()]
         }
     except Exception as e:
         logger.error(f"Erro no dashboard consolidado: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/visao-geral-relatorio/{ano}/{mes}")
