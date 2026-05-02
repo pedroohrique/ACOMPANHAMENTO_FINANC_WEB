@@ -115,13 +115,33 @@ def register(data: Dict[str, Any]):
     email = data.get("email")
     if not email: raise HTTPException(status_code=400, detail="Email obrigatorio")
     if email in users: raise HTTPException(status_code=400, detail="Usuario ja cadastrado")
+    
+    # Gerar código de verificação
+    code = "123456" # Fixo para facilitar ou pode ser random
+    logger.info(f"========== CÓDIGO DE VERIFICAÇÃO PARA {email}: {code} ==========")
+    
     users[email] = {
         "nome": data.get("nome"),
         "password": data.get("password"),
-        "verified": True
+        "verified": False,
+        "verification_code": code
     }
     save_users(users)
-    return {"message": "Usuario registrado"}
+    return {"message": "Usuario registrado. Verifique o console para o código."}
+
+@app.post("/api/auth/verify")
+def verify(data: Dict[str, Any]):
+    users = get_users()
+    email = data.get("email")
+    code = data.get("code")
+    if email not in users:
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado")
+    if users[email].get("verification_code") != code:
+        raise HTTPException(status_code=400, detail="Código inválido")
+    
+    users[email]["verified"] = True
+    save_users(users)
+    return {"message": "Email verificado com sucesso"}
 
 @app.post("/api/auth/login")
 def login(data: Dict[str, Any]):
@@ -130,6 +150,8 @@ def login(data: Dict[str, Any]):
     password = data.get("password")
     if email not in users or users[email]["password"] != password:
         raise HTTPException(status_code=401, detail="Email ou senha invalidos")
+    if not users[email].get("verified", False):
+        raise HTTPException(status_code=401, detail="Conta não verificada. Por favor, verifique seu email.")
     return {
         "access_token": f"token_{email}",
         "user": {"nome": users[email]["nome"], "email": email}

@@ -1,6 +1,9 @@
 export default async function handler(req, res) {
   // Pega o caminho real vindo do rewrite do vercel.json
-  const path = req.query.realPath || '';
+  let path = req.query.realPath || '';
+  if (Array.isArray(path)) {
+    path = path.join('/');
+  }
   const urlObj = new URL(req.url, `http://${req.headers.host}`);
   const search = urlObj.search;
   
