@@ -394,16 +394,10 @@ def query_money_flow(params):
                 )
 
                 SELECT 
-                    COALESCE(SUM(T2.VL_ENTRADAS),0) AS VL_ENTRADAS,
-                    COALESCE(SUM(T3.VL_SAIDAS),0)   AS VL_SAIDAS,
-                    MAX(M.MEDIA_MENSAL)  AS CUSTO_MEDIO_MENSAL,
-                    COALESCE(MAX(G.VALOR_ACUMULADO), 0) AS SALDO_ATUAL
-                FROM 
-                    BASE B
-                    LEFT JOIN VL_ENTRADAS  T2 ON T2.IDREGISTRO = B.IDREGISTRO
-                    LEFT JOIN VL_SAIDAS    T3 ON T3.IDREGISTRO = B.IDREGISTRO
-                    CROSS JOIN VL_MEDIA_SAIDAS M
-                    CROSS JOIN VL_GLOBAL G;"""
+                    (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA = 800) AS VL_ENTRADAS,
+                    (SELECT COALESCE(SUM(VALOR), 0) FROM TB_FLUXO_CAIXA WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA != 800) AS VL_SAIDAS,
+                    (SELECT MEDIA_MENSAL FROM VL_MEDIA_SAIDAS) AS CUSTO_MEDIO_MENSAL,
+                    (SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC) AS SALDO_ATUAL;"""
 
     connection, cursor = database_connection()
     try:
