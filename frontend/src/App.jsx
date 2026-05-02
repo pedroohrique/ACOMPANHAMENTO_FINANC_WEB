@@ -92,8 +92,8 @@ function App() {
     ano: new Date().getFullYear()
   })
 
-  const currentYear = new Date().getFullYear()
-  const currentMonth = new Date().getMonth() + 1
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1)
 
   const monthsList = [
     { id: 1, name: 'Janeiro' }, { id: 2, name: 'Fevereiro' }, { id: 3, name: 'Março' },
@@ -250,7 +250,7 @@ function App() {
 
   useEffect(() => {
     if (token) fetchData()
-  }, [token])
+  }, [token, currentMonth, currentYear])
 
   const filteredTransacoes = useMemo(() => {
     let base = transacoes;
@@ -455,8 +455,15 @@ function App() {
 
   const daysRemaining = (() => {
     const today = new Date()
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-    return lastDay - today.getDate() + 1
+    const isCurrentMonth = today.getMonth() + 1 === currentMonth && today.getFullYear() === currentYear
+    
+    if (isCurrentMonth) {
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+      return Math.max(1, lastDay - today.getDate() + 1)
+    } else {
+      // Para meses passados ou futuros, mostra a média do mês completo
+      return new Date(currentYear, currentMonth, 0).getDate()
+    }
   })()
   const recommendedDaily = reportOverview ? (reportOverview.valor_disponivel / daysRemaining) : 0
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
@@ -493,6 +500,19 @@ function App() {
         
         {activeTab === 'dashboard' ? (
           <div className="dashboard-view animate-fade-in">
+            <div className="dashboard-filters glass">
+                <div className="filter-group">
+                    <label>Período de Visualização:</label>
+                    <select value={currentMonth} onChange={e => setCurrentMonth(parseInt(e.target.value))}>
+                        {monthsList.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                    <input type="number" value={currentYear} onChange={e => setCurrentYear(parseInt(e.target.value))} style={{ width: '100px' }} />
+                </div>
+                <div className="filter-info">
+                    Exibindo dados de: <strong>{monthsList.find(m => m.id === currentMonth)?.name} de {currentYear}</strong>
+                </div>
+            </div>
+
             <div className="stats-row">
               <StatCard title="Entradas" value={formatCurrency(fluxo?.vl_entradas)} icon={TrendingUp} type="income" />
               <StatCard title="Gasto do Mês" value={formatCurrency(reportOverview?.total_gastos)} icon={Receipt} type="expense" />

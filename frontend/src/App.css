@@ -415,6 +415,55 @@ body {
   border-left: 4px solid var(--accent-danger);
 }
 
+/* Dashboard Filters */
+.dashboard-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  margin-bottom: 25px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.filter-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.filter-group select, .filter-group input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.filter-group select:focus, .filter-group input:focus {
+  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.filter-info {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.filter-info strong {
+  color: var(--accent-success);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
