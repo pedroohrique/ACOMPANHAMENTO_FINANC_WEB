@@ -188,6 +188,7 @@ function App() {
             handleLogout();
             throw new Error("Não autorizado");
         }
+        if (!res.ok) throw new Error('Falha ao carregar dados');
         return res.json();
       };
 
@@ -604,7 +605,7 @@ function App() {
                   <thead><tr><th>Data</th><th>Pagto</th><th>Descrição</th><th>Categoria</th><th>Local</th><th>Total</th><th>Parcela</th><th>Pendente</th><th>Forma</th><th>Ações</th></tr></thead>
                   <tbody>
                     {filteredTransacoes.map((t) => (
-                      <tr key={t.id}>
+                      <tr key={t.id} className={t.recorrente ? 'row-recorrente' : ''}>
                         <td>{t.dt_compra}</td>
                         <td>{t.dt_pagamento}</td>
                         <td className="font-semibold">{t.descricao}</td>
@@ -617,10 +618,9 @@ function App() {
                         <td>
                           <div className="action-buttons">
                             <button 
-                              className={`action-btn ${t.recorrente ? 'recorrente-active' : ''}`} 
-                              title={t.recorrente ? "Remover Recorrência" : "Marcar como Recorrente"} 
+                              className={`action-btn ${t.recorrente ? 'recorrencia-on' : 'recorrencia-off'}`} 
+                              title={t.recorrente ? "Inativar recorrência" : "Ativar recorrência"} 
                               onClick={() => handleToggleRecorrencia(t)}
-                              style={{ color: t.recorrente ? 'var(--accent-secondary)' : '' }}
                             >
                               <Repeat size={16} />
                             </button>

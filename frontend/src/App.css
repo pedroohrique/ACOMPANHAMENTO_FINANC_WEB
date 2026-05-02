@@ -388,6 +388,33 @@ body {
 .action-btn.edit:hover { background: rgba(59, 130, 246, 0.1); color: var(--accent-secondary); }
 .action-btn.delete:hover { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); }
 
+/* Estilos de Recorrência */
+.action-btn.recorrencia-off {
+  color: var(--accent-primary);
+  background: rgba(16, 185, 129, 0.05);
+}
+.action-btn.recorrencia-off:hover {
+  background: rgba(16, 185, 129, 0.15);
+  transform: scale(1.1);
+}
+
+.action-btn.recorrencia-on {
+  color: var(--accent-danger);
+  background: rgba(239, 68, 68, 0.05);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
+}
+.action-btn.recorrencia-on:hover {
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.1);
+}
+
+.row-recorrente {
+  background: rgba(239, 68, 68, 0.02) !important;
+}
+.row-recorrente td:first-child {
+  border-left: 4px solid var(--accent-danger);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;

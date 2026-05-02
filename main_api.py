@@ -26,6 +26,19 @@ def toggle_recorrencia_status(id_registro, status):
         ids.remove(id_registro)
     with open(RECORRENCIAS_FILE, "w") as f:
         json.dump(ids, f)
+    
+    # Sincroniza com o Banco de Dados para os Triggers
+    try:
+        from app.database.connection import database_connection
+        db_res = database_connection()
+        if db_res:
+            conn, cursor = db_res
+            with conn:
+                cursor.execute("UPDATE TB_REG_FINANC SET FLAG_RECORRENTE = ? WHERE ID_REGISTRO = ?", (1 if status else 0, id_registro))
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        print(f"Erro ao sincronizar flag de recorrencia no DB: {e}")
 
 # Configuração de logs
 logging.basicConfig(level=logging.INFO)
