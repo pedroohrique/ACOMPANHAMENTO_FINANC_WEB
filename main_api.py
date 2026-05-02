@@ -271,9 +271,14 @@ def get_dashboard_full(ano: int, mes: int):
         fluxo_raw = get_db_data(query_money_flow, (mes, ano))
         resumo_raw = get_db_data(fg_monthly_summary, (ano,))
         categorias_raw = get_db_data(fg_spent_by_category, (mes, ano))
-        debitos_raw = get_db_data(fg_outstanding_debts, ()) # Passa params vazio
+        debitos_raw = get_db_data(fg_outstanding_debts, (0, 0))
         cats_list = get_db_data(category_map)
         ways_list = get_db_data(payment_method_map)
+        
+        # Dados para os Cards (Gasto do Mês, Disponível, etc)
+        vl_total_mes = get_db_data(fg_total_exp, (mes, ano)) or 0
+        vl_pendente_total = get_db_data(fg_value_pending, (1, 0)) or 0
+        qtd_pendente_total = get_db_data(fg_active_installments, (1, 0)) or 0
         
         # Mapeia Fluxo
         f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
@@ -296,7 +301,7 @@ def get_dashboard_full(ano: int, mes: int):
             "maior_gasto": parse_currency(linha[7])
         } for linha in (resumo_raw or [])]
         
-        # Mapeia Categorias (Converte dict para lista de objetos)
+        # Mapeia Categorias
         categorias_mapped = [{"name": k, "value": v} for k, v in (categorias_raw or {}).items()]
         
         # Mapeia Débitos
@@ -307,17 +312,20 @@ def get_dashboard_full(ano: int, mes: int):
             "mes_ultimo_debito": d[7], "ano_ultimo_debito": d[8]
         } for d in (debitos_raw or [])]
         
-        # Report Overview (Filtra do resumo mapeado)
-        meses_nomes = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
-        nome_mes_atual = meses_nomes[mes-1]
-        report_curr = next((m for m in resumo_mapped if m['mes'] == nome_mes_atual), None)
+        # Report Overview (Cards superiores)
+        report_mapped = {
+            "total_gastos": vl_total_mes,
+            "valor_disponivel": 7500 - vl_total_mes,
+            "valor_total_pendente": vl_pendente_total,
+            "qtd_debitos_pendentes": qtd_pendente_total
+        }
         
         return {
             "fluxo": fluxo_mapped,
             "resumo": resumo_mapped,
             "gastos_categoria": categorias_mapped,
             "debitos_pendentes": debitos_mapped,
-            "report_overview": report_curr,
+            "report_overview": report_mapped,
             "categorias_lista": [[id, desc] for desc, id in (cats_list or {}).items()],
             "formas_pagamento_lista": [[id, desc] for desc, id in (ways_list or {}).items()]
         }
