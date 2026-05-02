@@ -204,12 +204,22 @@ function App() {
       // Só atualizamos os estados se conseguirmos chegar até o fim com sucesso
       setFluxo(dFluxo.fluxo)
       
-      const cleanResumo = (dResumo.resumo || []).map(item => ({
-        ...item,
-        gasto: typeof item.gasto === 'string' 
-          ? parseFloat(item.gasto.replace(/[R$\s.]/g, '').replace(',', '.')) || 0 
-          : parseFloat(item.gasto) || 0
-      }))
+      const cleanResumo = (dResumo.resumo || []).map(item => {
+        const parse = (val) => {
+            if (typeof val !== 'string') return parseFloat(val) || 0;
+            const s = val.replace(/[R$\s]/g, '').trim();
+            if (s.includes(',')) {
+                return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+            }
+            return parseFloat(s) || 0;
+        };
+        return {
+            ...item,
+            gasto: parse(item.gasto),
+            orcamento: parse(item.orcamento),
+            saldo: parse(item.saldo)
+        };
+      })
       setResumoMensal(cleanResumo)
       setTransacoes(dTrans.transacoes || [])
       setDebitosPendentes(dDebitos.debitos || [])
@@ -279,6 +289,11 @@ function App() {
 
   const handleToggleRecorrencia = async (t) => {
     try {
+      console.log("Objeto transação clicado:", t);
+      if (!t || !t.id) {
+        alert("Erro: ID da transação não encontrado.");
+        return;
+      }
       const url = getUrl(`/api/transacoes/${t.id}/recorrencia`);
       console.log("Chamando URL de recorrência:", url);
       const response = await fetch(url, {

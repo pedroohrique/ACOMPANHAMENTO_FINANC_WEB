@@ -100,10 +100,20 @@ def get_payment_methods():
 def parse_currency(value):
     if value is None: return 0.0
     if isinstance(value, (int, float)): return float(value)
-    # Remove R$, espaços e converte formato brasileiro para americano
-    clean = str(value).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+    if hasattr(value, '__float__'): return float(value)
+    
+    s = str(value).replace('R$', '').replace(' ', '').strip()
+    if not s: return 0.0
+    
+    # Lógica inteligente:
+    # 1. Se tem vírgula e ponto: 1.234,56 -> BR
+    # 2. Se tem só vírgula: 1234,56 -> BR
+    # 3. Se tem só ponto: 1234.56 -> US (Não remover o ponto!)
+    if ',' in s:
+        s = s.replace('.', '').replace(',', '.')
+    
     try:
-        return float(clean)
+        return float(s)
     except:
         return 0.0
 
