@@ -43,8 +43,8 @@ import {
 } from 'recharts'
 import './App.css'
 
-// API Base URL - FORÇANDO CAMINHO RELATIVO
-const API_URL = ''; 
+// API Base URL - USANDO VARIÁVEL DE AMBIENTE OU VAZIO PARA DESENVOLVIMENTO
+const API_URL = import.meta.env.VITE_API_URL || ''; 
 
 // Helper para tratar a URL
 const getUrl = (endpoint) => {
@@ -107,7 +107,8 @@ function App() {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
     'X-Auth-Token': token,
-    'Authorization': `Bearer ${token}`
+    'Authorization': `Bearer ${token}`,
+    'X-API-Key': 'pedro_financas_2026_seguro_!@'
   });
 
   const handleLogout = () => {

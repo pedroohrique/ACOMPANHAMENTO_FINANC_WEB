@@ -399,6 +399,26 @@ def update_recorrencia(id_registro: str, data: Dict[str, bool] = Body(...)):
         status = data.get("recorrente", False)
         logger.info(f"Alterando recorrência do ID {id_final} para {status}")
         toggle_recorrencia_status(id_final, status)
+        
+        if status:
+            process_monthly_recurrences()
+        else:
+            db_res = database_connection()
+            if db_res:
+                conn, cursor = db_res
+                try:
+                    cursor.execute("SELECT DESCRICAO FROM TB_REG_FINANC WHERE ID_REGISTRO = ?", (id_final,))
+                    row = cursor.fetchone()
+                    if row:
+                        desc = row[0]
+                        cursor.execute("DELETE FROM TB_REG_FINANC WHERE DESCRICAO = ? AND MONTH(DATA_GASTO) = ? AND YEAR(DATA_GASTO) = ? AND ID_REGISTRO != ?", (desc, datetime.now().month, datetime.now().year, id_final))
+                        conn.commit()
+                except Exception as e:
+                    logger.error(f"Erro ao remover clone de recorrencia: {e}")
+                finally:
+                    cursor.close()
+                    conn.close()
+                    
         return {"status": "success", "recorrente": status}
     except Exception as e:
         logger.error(f"Erro ao atualizar recorrência: {e}")

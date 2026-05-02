@@ -339,68 +339,38 @@ def fg_monthly_summary(params):
         cursor.close()
 
 def query_money_flow(params):
-    query = """WITH BASE AS (
-                    SELECT IDREGISTRO, DATA_REGISTRO
-                    FROM TB_FLUXO_CAIXA
-                    WHERE 
-                        MONTH(DATA_REGISTRO) = ?
-                        AND YEAR(DATA_REGISTRO) = ? 
-                ),
-                VL_ACUMULADO AS (
-                    SELECT TOP 1 
-                        IDREGISTRO, 
-                        VALOR_ACUMULADO AS VL_ACUMULADO
-                    FROM TB_FLUXO_CAIXA 
-                    ORDER BY ID_FLUXO DESC
-                ),
-                VL_SAIDAS AS (
-                    SELECT 
-                        IDREGISTRO,
-                        SUM(VALOR) AS VL_SAIDAS
-                    FROM TB_FLUXO_CAIXA 
-                    WHERE IDCATEGORIA != 800 
-                    GROUP BY IDREGISTRO
-                ),
-                VL_ENTRADAS AS (
-                    SELECT 
-                        IDREGISTRO,
-                        COALESCE(SUM(VALOR), 0) AS VL_ENTRADAS
-                    FROM TB_FLUXO_CAIXA 
-                    WHERE IDCATEGORIA = 800 
-                    GROUP BY IDREGISTRO
-                ),
-                VL_MEDIA_SAIDAS AS (
-                    SELECT 
-                        AVG(TOTAL_MES) AS MEDIA_MENSAL
-                    FROM (
-                        SELECT 
-                            SUM(H.VL_PARCELA) AS TOTAL_MES
-                        FROM TB_HISTORICO_FINANC H
-                        JOIN TB_REG_FINANC R 
-                            ON R.ID_REGISTRO = H.IDREGISTRO
-                        WHERE 
-                            R.IDCATEGORIA NOT IN (800, 900)
-                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
-                            >= DATEFROMPARTS(YEAR(GETDATE()), 1, 1)
-                            AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1)
-                            <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
-                        GROUP BY 
-                            MES_DEBITO_PARCELA, 
-                            ANO_DEBITO_PARCELA
-                    ) X
-                )
+    query = """
+        DECLARE @MES INT = ?;
+        DECLARE @ANO INT = ?;
 
-                SELECT 
-                    COALESCE(SUM(T2.VL_ENTRADAS),0) AS VL_ENTRADAS,
-                    COALESCE(SUM(T3.VL_SAIDAS),0)   AS VL_SAIDAS,
-                    MAX(M.MEDIA_MENSAL)  AS CUSTO_MEDIO_MENSAL,
-                    COALESCE(SUM(T1.VL_ACUMULADO),0) AS SALDO_ATUAL
-                FROM 
-                    BASE B
-                    LEFT JOIN VL_ACUMULADO T1 ON T1.IDREGISTRO = B.IDREGISTRO
-                    LEFT JOIN VL_ENTRADAS  T2 ON T2.IDREGISTRO = B.IDREGISTRO
-                    LEFT JOIN VL_SAIDAS    T3 ON T3.IDREGISTRO = B.IDREGISTRO
-                    CROSS JOIN VL_MEDIA_SAIDAS M;"""
+        DECLARE @VL_ENTRADAS DECIMAL(18,2) = COALESCE((
+            SELECT SUM(VALOR) FROM TB_FLUXO_CAIXA 
+            WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA = 800
+        ), 0);
+
+        DECLARE @VL_SAIDAS DECIMAL(18,2) = COALESCE((
+            SELECT SUM(VALOR) FROM TB_FLUXO_CAIXA 
+            WHERE MONTH(DATA_REGISTRO) = @MES AND YEAR(DATA_REGISTRO) = @ANO AND IDCATEGORIA != 800
+        ), 0);
+
+        DECLARE @SALDO_ATUAL DECIMAL(18,2) = COALESCE((
+            SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC
+        ), 0);
+
+        DECLARE @CUSTO_MEDIO DECIMAL(18,2) = COALESCE((
+            SELECT AVG(TOTAL_MES) FROM (
+                SELECT SUM(H.VL_PARCELA) AS TOTAL_MES
+                FROM TB_HISTORICO_FINANC H
+                JOIN TB_REG_FINANC R ON R.ID_REGISTRO = H.IDREGISTRO
+                WHERE R.IDCATEGORIA NOT IN (800, 900)
+                  AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1) >= DATEFROMPARTS(YEAR(GETDATE()), 1, 1)
+                  AND DATEFROMPARTS(H.ANO_DEBITO_PARCELA, H.MES_DEBITO_PARCELA, 1) < DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+                GROUP BY MES_DEBITO_PARCELA, ANO_DEBITO_PARCELA
+            ) X
+        ), 0);
+
+        SELECT @VL_ENTRADAS AS VL_ENTRADAS, @VL_SAIDAS AS VL_SAIDAS, @CUSTO_MEDIO AS CUSTO_MEDIO, @SALDO_ATUAL AS SALDO_ATUAL;
+    """
 
     connection, cursor = database_connection()
     try:

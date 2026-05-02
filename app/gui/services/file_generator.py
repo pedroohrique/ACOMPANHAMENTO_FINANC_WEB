@@ -30,7 +30,9 @@ class GenerateFile:
     def __init__(self, mes_visualizacao, ano_vizualizacao):
         self.mes_visualizacao = mes_visualizacao
         self.ano_visualizacao = ano_vizualizacao
-        load_dotenv(r"C:\Users\Pedro Henrique\Documents\DEV\Projetos\ACOMPANHAMENTO_FINANCEIRO\app\utils\.env")
+        # Usando caminho relativo para o .env
+        env_path = os.path.join(os.path.dirname(__file__), "..", "..", "utils", ".env")
+        load_dotenv(env_path)
         self.periodo = (self.mes_visualizacao, self.ano_visualizacao)
         self.logging = log_builder("file_generator.py")
         locale.setlocale(locale.LC_TIME, "Portuguese_Brazil.1252")

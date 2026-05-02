@@ -9,7 +9,7 @@ timeout /t 5
 :: Substitua 'usuario:senha' pela credencial que voce desejar
 :: Substitua '--domain=...' pelo seu dominio reservado no painel do ngrok
 echo Iniciando Tunel NGROK Seguro...
-start .\ngrok.exe http 8000 --domain=noncongruous-chiffonade-bernarda.ngrok-free.dev --auth="pedro:financeiro123"
+start .\ngrok.exe http 8000 --url=noncongruous-chiffonade-bernarda.ngrok-free.dev
 
 echo.
 echo ==========================================

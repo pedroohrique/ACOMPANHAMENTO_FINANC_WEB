@@ -1,0 +1,7 @@
+inbound:
+  - actions:
+      - type: basic-auth
+        config:
+          credentials:
+            - username: pedro
+              password: financeiro123
