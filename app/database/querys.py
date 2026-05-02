@@ -133,7 +133,7 @@ def with_filter():
     return query    
         
 def with_no_filter():
-    query = """SELECT
+    query = """SELECT TOP 200
                     CONVERT(VARCHAR, AF.DT_COMPRA, 103) AS "DT Compra",
                     CONVERT(VARCHAR, AF.DT_PAGAMENTO, 103) AS "DT Pagamento",
                     AF.VALOR_TOTAL "Total",
@@ -354,7 +354,7 @@ def query_money_flow(params):
         ), 0);
 
         DECLARE @SALDO_ATUAL DECIMAL(18,2) = COALESCE((
-            SELECT TOP 1 VALOR_ACUMULADO FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC
+            SELECT SUM(CASE WHEN IDCATEGORIA = 800 THEN VALOR ELSE -VALOR END) FROM TB_FLUXO_CAIXA
         ), 0);
 
         DECLARE @CUSTO_MEDIO DECIMAL(18,2) = COALESCE((

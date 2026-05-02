@@ -62,7 +62,7 @@ function App() {
   // Auth States
   const [token, setToken] = useState(localStorage.getItem('token'))
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')))
-  const [authStep, setAuthStep] = useState('login') // login, register, verify
+  const [authStep, setAuthStep] = useState(localStorage.getItem('token') ? 'dashboard' : 'login') // login, register, verify, dashboard
   const [authForm, setAuthForm] = useState({ nome: '', email: '', password: '', code: '' })
   const [authMessage, setAuthMessage] = useState({ text: '', type: '' })
 
@@ -106,9 +106,7 @@ function App() {
   const getHeaders = () => ({
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
-    'X-Auth-Token': token,
     'Authorization': `Bearer ${token}`,
-    'X-API-Key': 'pedro_financas_2026_seguro_!@',
     'ngrok-skip-browser-warning': 'true'
   });
 

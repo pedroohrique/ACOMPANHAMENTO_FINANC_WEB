@@ -20,7 +20,6 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'Authorization': req.headers['authorization'] || '',
         'X-Auth-Token': req.headers['x-auth-token'] || '',
-        'X-API-Key': 'pedro_financas_2026_seguro_!@',
         'ngrok-skip-browser-warning': 'true',
         'User-Agent': 'Vercel-Proxy'
       }

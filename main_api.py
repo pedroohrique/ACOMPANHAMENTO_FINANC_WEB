@@ -48,26 +48,7 @@ from app.database.querys import (
     fg_total_exp,
     database_connection
 )
-
-API_KEY_SECRET = "pedro_financas_2026_seguro_!@"
-
 app = FastAPI(title="API Acompanhamento Financeiro")
-
-@app.middleware("http")
-async def verify_api_key(request: Request, call_next):
-    # Log para depuração
-    logger.info(f"Recebendo requisição: {request.method} {request.url.path}")
-    
-    # Pula a verificação para opções (CORS)
-    if request.method == "OPTIONS":
-        return await call_next(request)
-    
-    api_key = request.headers.get("X-API-Key")
-    if api_key != API_KEY_SECRET:
-        return JSONResponse(status_code=403, content={"detail": "Acesso negado: Chave de API invalida"})
-    
-    response = await call_next(request)
-    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,6 +57,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- SEGURANÇA (JWT) ---
+import jwt
+from datetime import datetime, timedelta
+
+SECRET_KEY = "pedro_financas_2026_jwt_secret_key_super_segura"
+ALGORITHM = "HS256"
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=30)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    # Pula rotas públicas e preflight (OPTIONS)
+    if (request.url.path.startswith("/api/auth") or 
+        request.method == "OPTIONS" or 
+        request.url.path == "/"):
+        return await call_next(request)
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Não autenticado"})
+    
+    token = auth_header.split(" ")[1]
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return await call_next(request)
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"detail": "Sessão expirada"})
+    except jwt.InvalidTokenError:
+        return JSONResponse(status_code=401, content={"detail": "Token inválido"})
 
 # --- AUXILIARES ---
 def get_db_data(query_func, params=None):
@@ -150,10 +165,12 @@ def login(data: Dict[str, Any]):
     password = data.get("password")
     if email not in users or users[email]["password"] != password:
         raise HTTPException(status_code=401, detail="Email ou senha invalidos")
-    if not users[email].get("verified", False):
-        raise HTTPException(status_code=401, detail="Conta não verificada. Por favor, verifique seu email.")
+    
+    # Gera o token JWT
+    access_token = create_access_token(data={"sub": email})
+    
     return {
-        "access_token": f"token_{email}",
+        "access_token": access_token,
         "user": {"nome": users[email]["nome"], "email": email}
     }
 
@@ -241,70 +258,50 @@ def get_report_overview(ano: int, mes: int):
 
 # --- BACKGROUND TASKS ---
 def process_monthly_recurrences():
-    conn, cursor = None, None
     try:
         recorrentes = get_recorrencias_ids()
-        if not recorrentes:
-            return
-
-        query = with_no_filter()
+        if not recorrentes: return
+        
         db_res = database_connection()
         if not db_res: return
         conn, cursor = db_res
         
-        with conn:
-            cursor.execute(query)
-            rows = cursor.fetchall()
-            
         current_month = datetime.now().month
         current_year = datetime.now().year
         
-        descricoes_este_mes = set()
-        for r in rows:
-            dt_str = r[0]
-            if dt_str:
-                parts = dt_str.split('/')
-                if len(parts) == 3 and int(parts[1]) == current_month and int(parts[2]) == current_year:
-                    descricoes_este_mes.add(r[6].lower())
-                    
-        cat_map = category_map()
-        fp_map = payment_method_map()
+        # 1. Get descriptions already present in current month
+        cursor.execute("SELECT LOWER(DESCRICAO) FROM TB_REG_FINANC WHERE MONTH(DATA_GASTO) = ? AND YEAR(DATA_GASTO) = ?", (current_month, current_year))
+        descricoes_este_mes = {row[0] for row in cursor.fetchall()}
         
-        for r in rows:
-            id_registro = r[8]
-            if id_registro in recorrentes:
-                desc = r[6]
-                if desc.lower() not in descricoes_este_mes:
-                    # Precisa clonar
-                    dt_str = r[0]
-                    if not dt_str: continue
-                    parts = dt_str.split('/')
-                    dia = min(int(parts[0]), 28)
-                    dt_gasto = f"{current_year}-{current_month:02d}-{dia:02d}"
-                    
-                    try:
-                        valor = float(r[2]) if r[2] else 0.0
-                    except:
-                        try:
-                            valor = float(str(r[2]).replace('R$', '').replace('.','').replace(',', '.').strip())
-                        except:
-                            valor = 0.0
-                            
-                    array = {
-                        "dt_registro": datetime.now(),
-                        "dt_gasto": dt_gasto,
-                        "valor": valor,
-                        "desc": desc,
-                        "desc_local": r[7],
-                        "flag_parcelamento": r[10] or "N",
-                        "qt_parcelas": r[11] or 1,
-                        "desc_categoria": cat_map.get(r[5]),
-                        "forma_pagamento": fp_map.get(r[9])
-                    }
-                    
-                    if array["desc_categoria"] and array["forma_pagamento"]:
-                        record_financial(array)
-                        descricoes_este_mes.add(desc.lower())
+        # 2. Get details for recorrentes
+        placeholders = ','.join(['?'] * len(recorrentes))
+        query = f"SELECT DATA_GASTO, VALOR, DESCRICAO, LOCAL_GASTO, IDCATEGORIA, IDFORMA_PAGAMENTO, PARCELAMENTO, N_PARCELAS FROM TB_REG_FINANC WHERE ID_REGISTRO IN ({placeholders})"
+        cursor.execute(query, recorrentes)
+        targets = cursor.fetchall()
+        
+        for r in targets:
+            dt_orig, valor, desc, local, cat_id, fp_id, parcelamento, n_parcelas = r
+            if desc.lower() not in descricoes_este_mes:
+                # Clone for current month
+                dia = min(dt_orig.day, 28) if dt_orig else 1
+                dt_nova = datetime(current_year, current_month, dia)
+                
+                array = {
+                    "dt_registro": datetime.now(),
+                    "dt_gasto": dt_nova.strftime('%Y-%m-%d'),
+                    "valor": float(valor),
+                    "desc": desc,
+                    "desc_local": local,
+                    "flag_parcelamento": parcelamento or "N",
+                    "qt_parcelas": n_parcelas or 1,
+                    "desc_categoria": cat_id,
+                    "forma_pagamento": fp_id
+                }
+                
+                # Check if IDs are names or actual IDs
+                # record_financial expects IDs for cat and fp
+                record_financial(array)
+                descricoes_este_mes.add(desc.lower())
 
     except Exception as e:
         logger.error(f"Erro no processamento de recorrencias: {e}")
