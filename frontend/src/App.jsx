@@ -108,7 +108,8 @@ function App() {
     'X-Requested-With': 'XMLHttpRequest',
     'X-Auth-Token': token,
     'Authorization': `Bearer ${token}`,
-    'X-API-Key': 'pedro_financas_2026_seguro_!@'
+    'X-API-Key': 'pedro_financas_2026_seguro_!@',
+    'ngrok-skip-browser-warning': 'true'
   });
 
   const handleLogout = () => {
