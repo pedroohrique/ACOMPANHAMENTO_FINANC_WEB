@@ -139,18 +139,24 @@ def login(data: Dict[str, Any]):
 def parse_currency(value):
     if value is None: return 0.0
     if isinstance(value, (int, float)): return float(value)
-    if hasattr(value, '__float__'): return float(value)
     
+    # Se for string, remove R$, espaços e caracteres invisíveis
     s = str(value).replace('R$', '').replace(' ', '').replace('\xa0', '').strip()
     if not s: return 0.0
     
-    # Se tem vírgula, tratamos como formato BR (1.234,56 ou 1234,56)
+    # IDENTIFICAÇÃO DE FORMATO:
+    # Se tem vírgula, tratamos como BR: "1.234,56" -> "1234.56"
     if ',' in s:
-        # Remove pontos de milhar e troca vírgula decimal por ponto
         s = s.replace('.', '').replace(',', '.')
+    # Se NÃO tem vírgula mas tem ponto, assumimos que o ponto JÁ É o decimal (US)
+    # Ex: "1234.56" fica "1234.56". NÃO remover o ponto!
     
     try:
-        return float(s)
+        res = float(s)
+        # Log para debug se o valor for muito alto (suspeita de erro de escala)
+        if res > 1000000:
+            logger.warning(f"Valor suspeito detectado: {res} vindo de original: {value}")
+        return res
     except:
         return 0.0
 

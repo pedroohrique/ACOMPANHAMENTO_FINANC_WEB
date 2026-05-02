@@ -446,6 +446,9 @@ function App() {
           </div>
         </div>
       )}
+      <footer style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '0.8rem' }}>
+        <p>Finance Pro v1.0.4 - Sistema Estabilizado</p>
+      </footer>
     </div>
   )
 }
