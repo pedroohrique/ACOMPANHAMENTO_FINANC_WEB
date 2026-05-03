@@ -241,10 +241,11 @@ function App() {
       setReportOverview(data.report_overview)
       
       // Mapeamento Nome -> ID para uso nos formulários
-      const cMap = {}; (data.categorias_lista || []).forEach(c => cMap[c[1]] = c[0]);
+      // Backend envia [descricao, id]; o select precisa exibir descricao e enviar id no submit.
+      const cMap = {}; (data.categorias_lista || []).forEach(c => cMap[String(c[0] || '').toUpperCase()] = c[1]);
       setCategoriasMap(cMap);
       
-      const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[f[1]] = f[0]);
+      const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[String(f[0] || '').toUpperCase()] = f[1]);
       setFormasMap(fMap);
 
       // #region agent log
@@ -640,7 +641,7 @@ function App() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="mes" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => formatCurrency(val)} />
                     <Tooltip 
                       formatter={(value) => formatCurrency(value)} 
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }} 
@@ -667,7 +668,7 @@ function App() {
                       <Pie data={gastosCategoria} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
                         {gastosCategoria.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
-                      <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="category-table-mini">
