@@ -43,12 +43,25 @@ import {
 } from 'recharts'
 import './App.css'
 
-// API Base URL - USANDO VARIÁVEL DE AMBIENTE OU VAZIO PARA DESENVOLVIMENTO
-const API_URL = import.meta.env.VITE_API_URL || ''; 
+// API Base URL
+// Em produção (build do Vite, incluindo Vercel), SEMPRE use URLs relativas (/api/...) para evitar CORS.
+// Em dev, pode usar VITE_API_URL (ou vazio com proxy do Vite).
+const RAW_API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.PROD ? '' : RAW_API_URL;
 
 // Helper para tratar a URL
 const getUrl = (endpoint) => {
     return `${API_URL}${endpoint}`;
+};
+
+const debugLog = (hypothesisId, location, message, data, runId = 'pre-fix') => {
+  try {
+    fetch(getUrl('/api/debug-log'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      body: JSON.stringify({ sessionId: '496e72', runId, hypothesisId, location, message, data, timestamp: Date.now() })
+    }).catch(() => {});
+  } catch {}
 };
 
 const formatCurrency = (value) => {
@@ -76,6 +89,7 @@ function App() {
   const [reportOverview, setReportOverview] = useState(null)
   const [categoriasMap, setCategoriasMap] = useState({})
   const [formasMap, setFormasMap] = useState({})
+  const [lastDashboardPayload, setLastDashboardPayload] = useState(null)
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -203,6 +217,24 @@ function App() {
       const data = await fetchJson(`/api/v2/dashboard-full/${currentYear}/${currentMonth}`);
       const dTrans = await fetchJson(`/api/transacoes`); // Mantemos transações separado por ser a maior lista
 
+      setLastDashboardPayload({
+        dashboard_full: data,
+        transacoes_head: Array.isArray(dTrans?.transacoes) ? dTrans.transacoes.slice(0, 5) : dTrans?.transacoes
+      })
+
+      // #region agent log
+      debugLog('Hcards', 'frontend/src/App.jsx:fetchData', 'state month/year + key payload values', {
+        currentYear, currentMonth,
+        report_overview: data?.report_overview,
+        fluxo: data?.fluxo,
+        gastos_categoria_sample: Array.isArray(data?.gastos_categoria) ? data.gastos_categoria.slice(0, 5) : data?.gastos_categoria,
+      });
+      // #endregion
+
+      // #region agent log
+      fetch('http://127.0.0.1:7836/ingest/0065164b-4865-4764-bd69-9c6d9ff23588',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'496e72'},body:JSON.stringify({sessionId:'496e72',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/App.jsx:fetchData',message:'dashboard-full payload shapes + samples',data:{categorias_lista_sample:Array.isArray(data?.categorias_lista)?data.categorias_lista.slice(0,3):data?.categorias_lista,formas_pagamento_lista_sample:Array.isArray(data?.formas_pagamento_lista)?data.formas_pagamento_lista.slice(0,3):data?.formas_pagamento_lista,transacoes_sample:Array.isArray(dTrans?.transacoes)?dTrans.transacoes.slice(0,2):dTrans?.transacoes},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
       setFluxo(data.fluxo)
       setGastosCategoria(data.gastos_categoria || [])
       setDebitosPendentes(data.debitos_pendentes || [])
@@ -214,6 +246,10 @@ function App() {
       
       const fMap = {}; (data.formas_pagamento_lista || []).forEach(f => fMap[f[1]] = f[0]);
       setFormasMap(fMap);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7836/ingest/0065164b-4865-4764-bd69-9c6d9ff23588',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'496e72'},body:JSON.stringify({sessionId:'496e72',runId:'pre-fix',hypothesisId:'H2',location:'frontend/src/App.jsx:fetchData',message:'derived maps + option keys preview',data:{categoriasMap_keys_sample:Object.keys(cMap).slice(0,10),formasMap_keys_sample:Object.keys(fMap).slice(0,10),categoriasMap_entry0:(()=>{const k=Object.keys(cMap)[0];return k?{key:k,val:cMap[k]}:null})(),formasMap_entry0:(()=>{const k=Object.keys(fMap)[0];return k?{key:k,val:fMap[k]}:null})()},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       const cleanResumo = (data.resumo || []).map(item => {
         const parse = (val) => {
@@ -241,6 +277,13 @@ function App() {
       })).filter(cat => cat.value > 0);
       setGastosCategoria(formattedCats);
 
+      // #region agent log
+      debugLog('Hcat', 'frontend/src/App.jsx:fetchData', 'formattedCats sample', {
+        formattedCats_sample: formattedCats.slice(0, 8),
+        formattedCats_total: formattedCats.length
+      });
+      // #endregion
+
     } catch (error) {
       console.error("Erro ao buscar dados:", error)
     } finally {
@@ -251,6 +294,12 @@ function App() {
   useEffect(() => {
     if (token) fetchData()
   }, [token, currentMonth, currentYear])
+
+  useEffect(() => {
+    // #region agent log
+    debugLog('Hfilter', 'frontend/src/App.jsx:useEffect', 'month/year changed -> triggering fetchData', { token: !!token, currentYear, currentMonth });
+    // #endregion
+  }, [currentMonth, currentYear]);
 
   const filteredTransacoes = useMemo(() => {
     let base = transacoes;
@@ -337,6 +386,10 @@ function App() {
         id: null, dt_gasto: new Date().toISOString().split('T')[0], valor: '', descricao: '', categoria: '', local: '', forma_pagamento: '', parcelamento: 'Não', n_parcelas: '1'
       })
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7836/ingest/0065164b-4865-4764-bd69-9c6d9ff23588',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'496e72'},body:JSON.stringify({sessionId:'496e72',runId:'pre-fix',hypothesisId:'H3',location:'frontend/src/App.jsx:openModal',message:'modal open + select option labels snapshot',data:{mode,hasData:!!data,data_categoria:data?.categoria,data_forma_pagamento:data?.forma_pagamento,categorias_options_sample:Object.keys(categoriasMap||{}).slice(0,10),formas_options_sample:Object.keys(formasMap||{}).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     setShowModal(true)
   }
 
@@ -356,6 +409,10 @@ function App() {
         desc_categoria: categoriasMap[formData.categoria],
         forma_pagamento: formasMap[formData.forma_pagamento]
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7836/ingest/0065164b-4865-4764-bd69-9c6d9ff23588',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'496e72'},body:JSON.stringify({sessionId:'496e72',runId:'pre-fix',hypothesisId:'H4',location:'frontend/src/App.jsx:handleModalSubmit',message:'submit mapping (selected label -> id)',data:{selected_categoria_label:formData.categoria,mapped_categoria_id:categoriasMap[formData.categoria],selected_forma_label:formData.forma_pagamento,mapped_forma_id:formasMap[formData.forma_pagamento]},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       const response = await fetch(url, {
         method,
@@ -467,9 +524,59 @@ function App() {
   })()
   const recommendedDaily = reportOverview ? (reportOverview.valor_disponivel / daysRemaining) : 0
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
+  const debugEnabled = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get('debug') === '1'
+    } catch {
+      return false
+    }
+  })()
 
   return (
     <div className="app-container">
+      {debugEnabled && (
+        <div style={{
+          position: 'fixed',
+          bottom: 12,
+          right: 12,
+          zIndex: 99999,
+          width: '520px',
+          maxWidth: '92vw',
+          maxHeight: '70vh',
+          overflow: 'auto',
+          background: 'rgba(15, 23, 42, 0.95)',
+          border: '1px solid rgba(148, 163, 184, 0.25)',
+          borderRadius: '12px',
+          padding: '12px',
+          boxShadow: '0 20px 35px rgba(0,0,0,0.45)',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+          fontSize: '12px',
+          color: '#e2e8f0'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontWeight: 700 }}>DEBUG (496e72)</div>
+            <div style={{ opacity: 0.8 }}>month/year: {currentMonth}/{currentYear}</div>
+          </div>
+          <div style={{ opacity: 0.9, marginBottom: 8 }}>
+            <div>cards.reportOverview: {JSON.stringify(reportOverview)}</div>
+            <div>cards.fluxo: {JSON.stringify(fluxo)}</div>
+          </div>
+          <div style={{ opacity: 0.9, marginBottom: 8 }}>
+            <div>categoriasMap keys (10): {JSON.stringify(Object.keys(categoriasMap).slice(0, 10))}</div>
+            <div>formasMap keys (10): {JSON.stringify(Object.keys(formasMap).slice(0, 10))}</div>
+          </div>
+          <div style={{ opacity: 0.9, marginBottom: 8 }}>
+            <div>gastosCategoria (8): {JSON.stringify((gastosCategoria || []).slice(0, 8))}</div>
+          </div>
+          <div style={{ opacity: 0.9 }}>
+            <div>lastDashboardPayload.dashboard_full.report_overview: {JSON.stringify(lastDashboardPayload?.dashboard_full?.report_overview)}</div>
+            <div>lastDashboardPayload.dashboard_full.fluxo: {JSON.stringify(lastDashboardPayload?.dashboard_full?.fluxo)}</div>
+            <div>lastDashboardPayload.dashboard_full.gastos_categoria (5): {JSON.stringify((lastDashboardPayload?.dashboard_full?.gastos_categoria || []).slice(0, 5))}</div>
+            <div>lastDashboardPayload.dashboard_full.categorias_lista (5): {JSON.stringify((lastDashboardPayload?.dashboard_full?.categorias_lista || []).slice(0, 5))}</div>
+            <div>lastDashboardPayload.dashboard_full.formas_pagamento_lista (5): {JSON.stringify((lastDashboardPayload?.dashboard_full?.formas_pagamento_lista || []).slice(0, 5))}</div>
+          </div>
+        </div>
+      )}
       <aside className="sidebar glass">
         <div className="sidebar-logo"><div className="logo-icon"><Wallet size={24} color="#10b981" /></div><h1>Finance</h1></div>
         <div className="user-profile">

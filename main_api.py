@@ -41,6 +41,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _debug_log(hypothesis_id: str, location: str, message: str, data: Dict[str, Any], run_id: str = "pre-fix"):
+    try:
+        payload = {
+            "sessionId": "496e72",
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(datetime.now().timestamp() * 1000),
+        }
+        line = json.dumps(payload, ensure_ascii=False) + "\n"
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(base_dir, ".cursor", "debug-496e72.log"),
+            os.path.join(base_dir, "debug-496e72.log"),
+            os.path.join(os.getcwd(), "debug-496e72.log"),
+            os.path.join(os.getcwd(), ".cursor", "debug-496e72.log"),
+        ]
+        for p in candidates:
+            try:
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, "a", encoding="utf-8") as f:
+                    f.write(line)
+            except:
+                pass
+    except:
+        pass
+
 def get_recorrencias_ids():
     if not os.path.exists(RECORRENCIAS_FILE): return []
     try:
@@ -60,6 +90,9 @@ def parse_currency(val):
 async def auth_middleware(request: Request, call_next):
     if (request.url.path.startswith("/api/auth") or request.method == "OPTIONS" or request.url.path == "/"):
         return await call_next(request)
+    # Allow debug logging endpoint without auth (no secrets allowed in payload)
+    if request.url.path == "/api/debug-log":
+        return await call_next(request)
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"detail": "Não autenticado"})
@@ -69,9 +102,34 @@ async def auth_middleware(request: Request, call_next):
     except:
         return JSONResponse(status_code=401, content={"detail": "Sessão inválida"})
 
+@app.post("/api/debug-log")
+async def debug_log_endpoint(payload: Dict[str, Any] = Body(...)):
+    """
+    Coleta logs do frontend (ngrok/https) e grava em arquivo local NDJSON.
+    Não deve conter PII/segredos.
+    """
+    # #region agent log
+    _debug_log(
+        payload.get("hypothesisId", "FE"),
+        "main_api.py:debug_log_endpoint",
+        payload.get("message", "frontend log"),
+        payload.get("data", {}),
+        payload.get("runId", "pre-fix"),
+    )
+    # #endregion
+    return {"ok": True}
+
 @app.get("/api/v2/dashboard-full/{ano}/{mes}")
 def get_dashboard_full(ano: int, mes: int):
     try:
+        # #region agent log
+        _debug_log(
+            "H0",
+            "main_api.py:get_dashboard_full",
+            "request params received",
+            {"ano": ano, "mes": mes},
+        )
+        # #endregion
         # Busca dados usando conexões individuais para garantir estabilidade (sem travar cursor)
         fluxo_raw = query_money_flow((mes, ano))
         resumo_raw = fg_monthly_summary((ano,))
@@ -83,7 +141,21 @@ def get_dashboard_full(ano: int, mes: int):
         
         # Mapeamentos
         f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
-        return {
+        categorias_map = category_map() or {}
+        formas_map = payment_method_map() or {}
+        # #region agent log
+        _debug_log(
+            "H1",
+            "main_api.py:get_dashboard_full",
+            "maps returned by DB layer (keys are labels?)",
+            {
+                "category_map_sample": list(categorias_map.items())[:5],
+                "payment_method_map_sample": list(formas_map.items())[:5],
+            },
+        )
+        # #endregion
+
+        payload = {
             "fluxo": {
                 "vl_entradas": float(f[0] or 0), "vl_saidas": float(f[1] or 0),
                 "custo_medio_mensal": float(f[2] or 0), "saldo_atual": float(f[3] or 0)
@@ -106,9 +178,23 @@ def get_dashboard_full(ano: int, mes: int):
                 "valor_disponivel": 7500.0 - float(vl_total_mes),
                 "valor_total_pendente": float(vl_pendente_total)
             },
-            "categorias_lista": [[k, v] for k, v in (category_map() or {}).items()],
-            "formas_pagamento_lista": [[k, v] for k, v in (payment_method_map() or {}).items()]
+            "categorias_lista": [[k, v] for k, v in categorias_map.items()],
+            "formas_pagamento_lista": [[k, v] for k, v in formas_map.items()]
         }
+        # #region agent log
+        _debug_log(
+            "H1",
+            "main_api.py:get_dashboard_full",
+            "payload list samples (sent to frontend)",
+            {
+                "report_overview": payload.get("report_overview"),
+                "fluxo": payload.get("fluxo"),
+                "categorias_lista_sample": (payload.get("categorias_lista") or [])[:5],
+                "formas_pagamento_lista_sample": (payload.get("formas_pagamento_lista") or [])[:5],
+            },
+        )
+        # #endregion
+        return payload
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
