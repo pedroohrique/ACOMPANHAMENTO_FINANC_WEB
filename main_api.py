@@ -287,17 +287,17 @@ def get_dashboard_full(ano: int, mes: int):
             debitos_raw = future_debitos.result()
             cats_list = future_cats_list.result()
             ways_list = future_ways_list.result()
-            vl_total_mes = future_total_mes.result() or 0
-            vl_pendente_total = future_pendente_total.result() or 0
-            qtd_pendente_total = future_qtd_pendente.result() or 0
+            vl_total_mes = float(future_total_mes.result() or 0)
+            vl_pendente_total = float(future_pendente_total.result() or 0)
+            qtd_pendente_total = int(future_qtd_pendente.result() or 0)
         
         # Mapeia Fluxo
         f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
         fluxo_mapped = {
-            "vl_entradas": f[0], 
-            "vl_saidas": f[1], 
-            "custo_medio_mensal": f[2], 
-            "saldo_atual": f[3]
+            "vl_entradas": float(f[0] or 0), 
+            "vl_saidas": float(f[1] or 0), 
+            "custo_medio_mensal": float(f[2] or 0), 
+            "saldo_atual": float(f[3] or 0)
         }
         
         # Mapeia Resumo

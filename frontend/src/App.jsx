@@ -580,7 +580,7 @@ function App() {
               </div>
             </div>
             <div className="report-section glass" style={{ marginBottom: '24px' }}>
-        <h3>Débitos Pendentes - <span style={{ color: '#ef4444', marginLeft: '10px' }}>Total: {formatCurrency(reportOverview?.vl_pendente_total)}</span></h3>
+        <h3>Débitos Pendentes - <span style={{ color: '#ef4444', marginLeft: '10px' }}>Total: {formatCurrency(reportOverview?.valor_total_pendente)}</span></h3>
               <div className="table-container">
                 <table className="modern-table">
                   <thead><tr><th>Descrição</th><th>Parcelas</th><th>Vlr Total</th><th>Vlr Pendente</th><th>Último Pgto</th></tr></thead>
