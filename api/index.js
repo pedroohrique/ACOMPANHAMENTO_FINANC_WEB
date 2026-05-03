@@ -1,19 +1,21 @@
 export default async function handler(req, res) {
-  // Pega o caminho real vindo do rewrite do vercel.json
-  let path = req.query.realPath || '';
-  if (Array.isArray(path)) {
-    path = path.join('/');
-  }
-  
-  // Limpa os parâmetros de busca para não passar o 'realPath' adiante
-  const urlObj = new URL(req.url, `http://${req.headers.host}`);
-  const searchParams = new URLSearchParams(urlObj.search);
-  searchParams.delete('realPath');
-  const cleanSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
-  
-  const targetUrl = `https://noncongruous-chiffonade-bernarda.ngrok-free.dev/api/${path}${cleanSearch}`;
-
   try {
+    // Pega o caminho real vindo do rewrite do vercel.json
+    let path = req.query?.realPath || '';
+    if (Array.isArray(path)) {
+      path = path.join('/');
+    }
+    path = String(path || '');
+
+    // Limpa os parâmetros de busca para não passar o 'realPath' adiante
+    const host = req.headers?.host || 'localhost';
+    const urlObj = new URL(req.url || '/', `http://${host}`);
+    const searchParams = new URLSearchParams(urlObj.search);
+    searchParams.delete('realPath');
+    const cleanSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    
+    const targetUrl = `https://noncongruous-chiffonade-bernarda.ngrok-free.dev/api/${path}${cleanSearch}`;
+
     const fetchOptions = {
       method: req.method,
       headers: {
@@ -52,7 +54,11 @@ export default async function handler(req, res) {
     console.error('Proxy Error:', error);
     res.status(500).json({ 
       detail: `Falha na conexão com o servidor (ngrok): ${error.message}`,
-      target: targetUrl
+      // Inclui contexto para debugar erros 502/edge cases
+      name: error?.name,
+      stack: error?.stack,
+      method: req?.method,
+      url: req?.url
     });
   }
 }
