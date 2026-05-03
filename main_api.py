@@ -77,10 +77,12 @@ def get_recorrencias_ids():
         with open(RECORRENCIAS_FILE, "r") as f: return json.load(f)
     except: return []
 
+import decimal
+
 # Auxiliar para converter moeda
 def parse_currency(val):
     if val is None: return 0
-    if isinstance(val, (int, float)): return float(val)
+    if isinstance(val, (int, float, decimal.Decimal)): return float(val)
     try:
         s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
         return float(s)
