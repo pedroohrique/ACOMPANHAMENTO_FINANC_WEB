@@ -106,8 +106,8 @@ def get_dashboard_full(ano: int, mes: int):
                 "valor_disponivel": 7500.0 - float(vl_total_mes),
                 "valor_total_pendente": float(vl_pendente_total)
             },
-            "categorias_lista": list((category_map() or {}).items()),
-            "formas_pagamento_lista": list((payment_method_map() or {}).items())
+            "categorias_lista": [[k, v] for k, v in (category_map() or {}).items()],
+            "formas_pagamento_lista": [[k, v] for k, v in (payment_method_map() or {}).items()]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
