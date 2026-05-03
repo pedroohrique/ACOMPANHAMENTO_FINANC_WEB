@@ -53,7 +53,7 @@ def update_financial(array, id_registro):
     try:
     
         with connection:
-            cursor.execute(query,
+            cursor.execute(query, (
                         array["dt_gasto"],
                         array["valor"],
                         array["desc"],
@@ -62,7 +62,7 @@ def update_financial(array, id_registro):
                         array["forma_pagamento"],
                         array["flag_parcelamento"],
                         array["qt_parcelas"],
-                        id_registro)
+                        id_registro))
             connection.commit()
     except Exception as e:
         log.error(f"Falha ao atualizar o registro selecionado: {e}")
@@ -85,7 +85,7 @@ def record_financial(array):
                 
     try:
         with connection:
-            cursor.execute(query,
+            cursor.execute(query, (
                         array["dt_registro"],
                         array["dt_gasto"],
                         array["valor"],
@@ -94,7 +94,7 @@ def record_financial(array):
                         array["flag_parcelamento"],
                         array["qt_parcelas"],
                         array["desc_categoria"],
-                        array["forma_pagamento"])
+                        array["forma_pagamento"]))
             connection.commit()
     except Exception as e:
         log.error(f"Falha ao inserir o registro no banco de dados: {e}")
@@ -106,7 +106,7 @@ def deleta_item_treeview(id):
     query = "DELETE FROM TB_REG_FINANC WHERE ID_REGISTRO = ?"
     try:
         with connection:
-            cursor.execute(query, id)
+            cursor.execute(query, (id,))
             connection.commit()
     
     except Exception as e:
