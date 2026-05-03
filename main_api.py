@@ -115,7 +115,21 @@ async def auth_middleware(request: Request, call_next):
         return JSONResponse(status_code=401, content={"detail": "Sessão inválida ou expirada"})
 
 # --- AUXILIARES ---
+def get_db_data_shared(query_func, conn, params=None):
+    """Executa uma query usando uma conexão já aberta."""
+    cursor = conn.cursor()
+    try:
+        if params is not None:
+            return query_func(params, shared_cursor=cursor)
+        return query_func(shared_cursor=cursor)
+    except Exception as e:
+        logger.error(f"Erro ao executar {query_func.__name__} (shared): {e}")
+        return None
+    finally:
+        cursor.close()
+
 def get_db_data(query_func, params=None):
+    """Fallback para compatibilidade com funções antigas."""
     try:
         if params is not None:
             return query_func(params)
@@ -267,31 +281,28 @@ def get_pending_debts():
 # --- NOVO: ENDPOINT CONSOLIDADO PARA VELOCIDADE ---
 @app.get("/api/v2/dashboard-full/{ano}/{mes}")
 def get_dashboard_full(ano: int, mes: int):
+    db_res = database_connection()
+    if not db_res:
+        raise HTTPException(status_code=500, detail="Erro de conexão com o banco")
+    
+    conn, _ = db_res
     try:
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            # Dispara todas as consultas em paralelo
-            future_fluxo = executor.submit(get_db_data, query_money_flow, (mes, ano))
-            future_resumo = executor.submit(get_db_data, fg_monthly_summary, (ano,))
-            future_categorias_raw = executor.submit(get_db_data, fg_spent_by_category, (mes, ano))
-            future_debitos = executor.submit(get_db_data, fg_outstanding_debts, (0, 1))
-            future_cats_list = executor.submit(get_db_data, category_map)
-            future_ways_list = executor.submit(get_db_data, payment_method_map)
-            future_total_mes = executor.submit(get_db_data, fg_total_exp, (mes, ano))
-            future_pendente_total = executor.submit(get_db_data, fg_value_pending, (1, 0))
-            future_qtd_pendente = executor.submit(get_db_data, fg_active_installments, (1, 0))
-
-            # Coleta os resultados
-            fluxo_raw = future_fluxo.result()
-            resumo_raw = future_resumo.result()
-            categorias_raw = future_categorias_raw.result()
-            debitos_raw = future_debitos.result()
-            cats_list = future_cats_list.result()
-            ways_list = future_ways_list.result()
-            vl_total_mes = float(future_total_mes.result() or 0)
-            vl_pendente_total = float(future_pendente_total.result() or 0)
-            qtd_pendente_total = int(future_qtd_pendente.result() or 0)
+        cursor = conn.cursor()
+        # Busca dados de forma eficiente usando a mesma conexão e cursor
+        fluxo_raw = query_money_flow((mes, ano), shared_cursor=cursor)
+        resumo_raw = fg_monthly_summary((ano,), shared_cursor=cursor)
+        categorias_raw = fg_spent_by_category((mes, ano), shared_cursor=cursor)
+        debitos_raw = fg_outstanding_debts((0, 1), shared_cursor=cursor)
+        cats_list = category_map(shared_cursor=cursor)
+        ways_list = payment_method_map(shared_cursor=cursor)
         
-        # Mapeia Fluxo
+        vl_total_mes = fg_total_exp((mes, ano), shared_cursor=cursor) or 0
+        vl_pendente_total = fg_value_pending((1, 0), shared_cursor=cursor) or 0
+        qtd_pendente_total = fg_active_installments((1, 0), shared_cursor=cursor) or 0
+        
+        cursor.close()
+        
+        # Mapeia Fluxo com conversão segura
         f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
         fluxo_mapped = {
             "vl_entradas": float(f[0] or 0), 

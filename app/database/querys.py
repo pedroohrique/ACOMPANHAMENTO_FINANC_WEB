@@ -3,34 +3,38 @@ from app.utils.logger import log_builder
 
 log = log_builder("querys.py")
 
-def payment_method_map() -> dict:
-    connection, cursor = database_connection()
+def payment_method_map(shared_cursor=None) -> dict:
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:        
-        with connection:
-            query = "SELECT DESCRICAO, ID_FORMA FROM TB_FORMA_PAGAMENTO"
-            cursor.execute(query)
-            retorno_query = cursor.fetchall()
-            formas = {linha[0]:linha[1] for linha in retorno_query}    
+        query = "SELECT DESCRICAO, ID_FORMA FROM TB_FORMA_PAGAMENTO"
+        cursor.execute(query)
+        retorno_query = cursor.fetchall()
+        formas = {linha[0]:linha[1] for linha in retorno_query}    
         return formas
     except Exception as e:
         log.error(f"Falha ao executar a query: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
         
         
-def category_map() -> dict:
-    connection, cursor = database_connection()
+def category_map(shared_cursor=None) -> dict:
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:        
-        with connection:
-            query = "SELECT DESCRICAO, ID_CATEGORIA FROM TB_CATEGORIA"
-            cursor.execute(query)
-            retorno_query = cursor.fetchall()
-            categorias = {linha[0]:linha[1] for linha in retorno_query}
+        query = "SELECT DESCRICAO, ID_CATEGORIA FROM TB_CATEGORIA"
+        cursor.execute(query)
+        retorno_query = cursor.fetchall()
+        categorias = {linha[0]:linha[1] for linha in retorno_query}
         return categorias
     except Exception as e:
         log.error(f"Erro ao executar a query: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
 
 
 def update_financial(array, id_registro):
@@ -45,7 +49,7 @@ def update_financial(array, id_registro):
                     IDFORMA_PAGAMENTO = ?,
                     PARCELAMENTO = ?,
                     N_PARCELAS = ?
-                WHERE ID_REG_FINANC = ?"""
+                WHERE ID_REGISTRO = ?"""
     try:
     
         with connection:
@@ -99,7 +103,7 @@ def record_financial(array):
 
 def deleta_item_treeview(id):
     connection, cursor = database_connection()
-    query = "DELETE FROM TB_REG_FINANC WHERE ID_REG_FINANC = ?"
+    query = "DELETE FROM TB_REG_FINANC WHERE ID_REGISTRO = ?"
     try:
         with connection:
             cursor.execute(query, id)
@@ -157,7 +161,7 @@ def with_no_filter():
     return query
 
 
-def fg_total_exp(params):
+def fg_total_exp(params, shared_cursor=None):
     query = """SELECT 
                 SUM(THF.VL_PARCELA)
             FROM
@@ -171,20 +175,22 @@ def fg_total_exp(params):
                 THF.MES_DEBITO_PARCELA,
                 THF.ANO_DEBITO_PARCELA;"""
     
-    connection,cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query =  cursor.fetchone()
-            return resultado_query[0]
+        cursor.execute(query, params)
+        resultado_query =  cursor.fetchone()
+        return resultado_query[0] if resultado_query else 0
     
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
         
-def fg_spent_by_category(params):
+def fg_spent_by_category(params, shared_cursor=None):
     query = """SELECT
                     T1.DESCRICAO,
                     COALESCE(SUM(T3.VL_PARCELA), 0) AS TOTAL
@@ -198,24 +204,26 @@ def fg_spent_by_category(params):
                 GROUP BY
                     T1.DESCRICAO;"""
     
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchall()
-            dados = {}
-            for item in resultado_query:
-                dados[item[0]] = item[1]
-                
-            return dados
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchall()
+        dados = {}
+        for item in resultado_query:
+            dados[item[0]] = item[1]
+            
+        return dados
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
         
 
-def fg_outstanding_debts(params):
+def fg_outstanding_debts(params, shared_cursor=None):
     query = """SELECT
                 DISTINCT
                 T2.DESCRICAO,
@@ -236,48 +244,54 @@ def fg_outstanding_debts(params):
                 T4.QT_PARCELAS_PENDENTES > ?
                 AND T4.QT_PARCELAS > ?;"""
                 
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchall()
-            return resultado_query
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchall()
+        return resultado_query
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
         
 
-def fg_active_installments(params):
+def fg_active_installments(params, shared_cursor=None):
     query = """SELECT COUNT(*) FROM TB_ACOMPANHAMENTO_FINANC WHERE QT_PARCELAS > ? AND QT_PARCELAS_PENDENTES > ?"""
     
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchone()
-            return resultado_query[0]
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchone()
+        return resultado_query[0] if resultado_query else 0
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
         
-def fg_value_pending(params):
+def fg_value_pending(params, shared_cursor=None):
     query = """SELECT SUM(VALOR_PENDENTE) FROM TB_ACOMPANHAMENTO_FINANC WHERE QT_PARCELAS > ? AND QT_PARCELAS_PENDENTES > ?"""
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchone()
-            return resultado_query[0]
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchone()
+        return resultado_query[0] if resultado_query else 0
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
 
 
-def fg_monthly_summary(params):
+def fg_monthly_summary(params, shared_cursor=None):
     query = """WITH CTE AS (
             SELECT
                 THF.MES_DEBITO_PARCELA,
@@ -327,18 +341,20 @@ def fg_monthly_summary(params):
         ORDER BY CTE.ANO_DEBITO_PARCELA, CTE.MES_DEBITO_PARCELA;
         """
 
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchall()
-            return resultado_query
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchall()
+        return resultado_query
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
 
-def query_money_flow(params):
+def query_money_flow(params, shared_cursor=None):
     query = """
         DECLARE @MES INT = ?;
         DECLARE @ANO INT = ?;
@@ -371,13 +387,15 @@ def query_money_flow(params):
             (SELECT TOP 1 COALESCE(VALOR_ACUMULADO, 0) FROM TB_FLUXO_CAIXA ORDER BY ID_FLUXO DESC) AS SALDO_ATUAL;
     """
 
-    connection, cursor = database_connection()
+    cursor = shared_cursor
+    if not cursor:
+        connection, cursor = database_connection()
     try:
-        with connection:
-            cursor.execute(query, params)
-            resultado_query = cursor.fetchall()
-            return resultado_query
+        cursor.execute(query, params)
+        resultado_query = cursor.fetchall()
+        return resultado_query
     except Exception as e:
         log.error(f"Falha ao executar a query, erro: {e}")
     finally:
-        cursor.close()
+        if not shared_cursor:
+            cursor.close()
