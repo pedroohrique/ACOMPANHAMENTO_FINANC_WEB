@@ -6,6 +6,7 @@ import logging
 from typing import Optional, Dict, Any
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 RECORRENCIAS_FILE = os.path.join("app", "database", "recorrencias.json")
 
@@ -267,18 +268,28 @@ def get_pending_debts():
 @app.get("/api/v2/dashboard-full/{ano}/{mes}")
 def get_dashboard_full(ano: int, mes: int):
     try:
-        # Busca dados brutos
-        fluxo_raw = get_db_data(query_money_flow, (mes, ano))
-        resumo_raw = get_db_data(fg_monthly_summary, (ano,))
-        categorias_raw = get_db_data(fg_spent_by_category, (mes, ano))
-        debitos_raw = get_db_data(fg_outstanding_debts, (0, 1))
-        cats_list = get_db_data(category_map)
-        ways_list = get_db_data(payment_method_map)
-        
-        # Dados para os Cards (Gasto do Mês, Disponível, etc)
-        vl_total_mes = get_db_data(fg_total_exp, (mes, ano)) or 0
-        vl_pendente_total = get_db_data(fg_value_pending, (1, 0)) or 0
-        qtd_pendente_total = get_db_data(fg_active_installments, (1, 0)) or 0
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # Dispara todas as consultas em paralelo
+            future_fluxo = executor.submit(get_db_data, query_money_flow, (mes, ano))
+            future_resumo = executor.submit(get_db_data, fg_monthly_summary, (ano,))
+            future_categorias_raw = executor.submit(get_db_data, fg_spent_by_category, (mes, ano))
+            future_debitos = executor.submit(get_db_data, fg_outstanding_debts, (0, 1))
+            future_cats_list = executor.submit(get_db_data, category_map)
+            future_ways_list = executor.submit(get_db_data, payment_method_map)
+            future_total_mes = executor.submit(get_db_data, fg_total_exp, (mes, ano))
+            future_pendente_total = executor.submit(get_db_data, fg_value_pending, (1, 0))
+            future_qtd_pendente = executor.submit(get_db_data, fg_active_installments, (1, 0))
+
+            # Coleta os resultados
+            fluxo_raw = future_fluxo.result()
+            resumo_raw = future_resumo.result()
+            categorias_raw = future_categorias_raw.result()
+            debitos_raw = future_debitos.result()
+            cats_list = future_cats_list.result()
+            ways_list = future_ways_list.result()
+            vl_total_mes = future_total_mes.result() or 0
+            vl_pendente_total = future_pendente_total.result() or 0
+            qtd_pendente_total = future_qtd_pendente.result() or 0
         
         # Mapeia Fluxo
         f = fluxo_raw[0] if fluxo_raw else [0, 0, 0, 0]
