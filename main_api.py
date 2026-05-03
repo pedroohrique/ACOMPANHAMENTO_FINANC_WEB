@@ -189,6 +189,7 @@ def get_dashboard_full(ano: int, mes: int):
             {
                 "report_overview": payload.get("report_overview"),
                 "fluxo": payload.get("fluxo"),
+                "resumo_sample": (payload.get("resumo") or [])[:3],
                 "categorias_lista_sample": (payload.get("categorias_lista") or [])[:5],
                 "formas_pagamento_lista_sample": (payload.get("formas_pagamento_lista") or [])[:5],
             },
